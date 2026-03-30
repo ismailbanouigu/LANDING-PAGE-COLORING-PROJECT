@@ -7,7 +7,7 @@ import {
   Clock, Shield, Mail,
   Facebook, Twitter, Instagram, Youtube, Linkedin,
   Eye, Wand2, PenTool, ScanLine, Paintbrush,
-  Share2, Bookmark, Undo, Redo, Eraser, Loader2
+  Share2, Bookmark, Undo, Redo, Eraser, Loader2, Github
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import type { User } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
+import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { auth, db, githubProvider } from '@/lib/firebase';
 
 function scrollToSection(sectionId: string) {
   const id = sectionId.startsWith('#') ? sectionId.slice(1) : sectionId;
@@ -31,6 +35,22 @@ function openOnlineColoring(imageUrl: string) {
     new CustomEvent('online-coloring:set-image', { detail: { url: imageUrl } })
   )
   scrollToSection('online-coloring')
+}
+
+function getOrCreateSessionId() {
+  const key = 'INKBLOOM_SESSION_ID'
+  try {
+    const existing = localStorage.getItem(key)
+    if (existing) return existing
+    const value =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? (crypto as Crypto).randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    localStorage.setItem(key, value)
+    return value
+  } catch {
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+  }
 }
 
 function makePollinationsSeed() {
@@ -90,7 +110,14 @@ function usePollinationsServerStatus() {
 }
 
 // ==================== NAVIGATION ====================
-function Header() {
+type HeaderProps = {
+  user: User | null
+  onSignIn: () => void
+  onSignOut: () => void
+  isSigningIn: boolean
+}
+
+function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
@@ -194,9 +221,36 @@ function Header() {
 
           {/* CTA Buttons */}
           <div className="hidden lg:flex items-center gap-3">
-            <Button variant="ghost" className="text-gray-600 hover:text-indigo-600">
-              Sign In
-            </Button>
+            {user ? (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50">
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt="User" className="w-7 h-7 rounded-full" />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center">
+                      <Users className="w-4 h-4 text-indigo-600" />
+                    </div>
+                  )}
+                  <span className="text-sm text-gray-700 max-w-40 truncate">
+                    {user.displayName ?? user.email ?? 'Account'}
+                  </span>
+                </div>
+                <Button variant="ghost" className="text-gray-600 hover:text-indigo-600" onClick={onSignOut}>
+                  Sign Out
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                className="text-gray-600 hover:text-indigo-600"
+                onClick={onSignIn}
+                disabled={isSigningIn}
+              >
+                {isSigningIn && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                <Github className="w-4 h-4 mr-2" />
+                Sign In with GitHub
+              </Button>
+            )}
             <Button
               onClick={() => scrollToSection('text-feature')}
               className="bg-gradient-to-r from-indigo-600 to-emerald-500 hover:from-indigo-700 hover:to-emerald-600 text-white px-6"
@@ -2851,9 +2905,77 @@ function Footer() {
 
 // ==================== MAIN APP ====================
 function App() {
+  const [user, setUser] = useState<User | null>(null)
+  const [isSigningIn, setIsSigningIn] = useState(false)
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => setUser(u))
+    return () => unsub()
+  }, [])
+
+  useEffect(() => {
+    const run = async () => {
+      const sessionId = getOrCreateSessionId()
+      try {
+        await addDoc(collection(db, 'visits'), {
+          createdAt: serverTimestamp(),
+          uid: user?.uid ?? null,
+          sessionId,
+          path: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+          referrer: document.referrer || null,
+          userAgent: navigator.userAgent,
+        })
+      } catch {
+        return
+      }
+    }
+    void run()
+  }, [user?.uid])
+
+  useEffect(() => {
+    const run = async () => {
+      if (!user) return
+      try {
+        await setDoc(
+          doc(db, 'users', user.uid),
+          {
+            uid: user.uid,
+            email: user.email ?? null,
+            displayName: user.displayName ?? null,
+            photoURL: user.photoURL ?? null,
+            lastSignInAt: serverTimestamp(),
+          },
+          { merge: true }
+        )
+      } catch {
+        return
+      }
+    }
+    void run()
+  }, [user])
+
+  const handleSignIn = async () => {
+    setIsSigningIn(true)
+    try {
+      await signInWithPopup(auth, githubProvider)
+    } catch {
+      return
+    } finally {
+      setIsSigningIn(false)
+    }
+  }
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth)
+    } catch {
+      return
+    }
+  }
+
   return (
     <div className="min-h-screen bg-white">
-      <Header />
+      <Header user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} isSigningIn={isSigningIn} />
       <main>
         <HeroSection />
         <HowItWorksSection />
