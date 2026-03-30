@@ -1,0 +1,6 @@
+#!/bin/sh
+if [ "${GIT_AUTO_PUSH:-1}" = "0" ]; then
+  exit 0
+fi
+git remote get-url origin >/dev/null 2>&1 || exit 0
+git push >/dev/null 2>&1 || exit 0

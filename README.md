@@ -2,6 +2,16 @@
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
+## Git Auto Push
+
+Run once in PowerShell (inside the project folder):
+
+```powershell
+.\scripts\enable-auto-push.ps1
+```
+
+Then every `git commit` will auto-run `git push` (disable temporarily with `set GIT_AUTO_PUSH=0`).
+
 Currently, two official plugins are available:
 
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh

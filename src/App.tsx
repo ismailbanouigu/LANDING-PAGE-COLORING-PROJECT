@@ -7,7 +7,7 @@ import {
   Clock, Shield, Mail,
   Facebook, Twitter, Instagram, Youtube, Linkedin,
   Eye, Wand2, PenTool, ScanLine, Paintbrush,
-  Share2, Bookmark, Undo, Redo, Eraser, Loader2, Github
+  Share2, Bookmark, Undo, Redo, Eraser, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,7 @@ import { Separator } from '@/components/ui/separator';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { auth, db, githubProvider } from '@/lib/firebase';
+import { auth, db, googleProvider } from '@/lib/firebase';
 
 function scrollToSection(sectionId: string) {
   const id = sectionId.startsWith('#') ? sectionId.slice(1) : sectionId;
@@ -247,8 +247,7 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
                 disabled={isSigningIn}
               >
                 {isSigningIn && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                <Github className="w-4 h-4 mr-2" />
-                Sign In with GitHub
+                Sign In with Google
               </Button>
             )}
             <Button
@@ -2957,7 +2956,7 @@ function App() {
   const handleSignIn = async () => {
     setIsSigningIn(true)
     try {
-      await signInWithPopup(auth, githubProvider)
+      await signInWithPopup(auth, googleProvider)
     } catch {
       return
     } finally {
