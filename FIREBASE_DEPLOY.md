@@ -67,3 +67,19 @@ If you host the frontend on Cloudflare (or any other domain) but keep the API on
 ```
 VITE_API_BASE=https://YOUR-PROJECT.web.app
 ```
+
+### Cloudflare Worker (API Only)
+
+If you want `/api/pollinations/*` to work directly on Cloudflare without Firebase, deploy the Worker in this repo:
+
+```powershell
+npx wrangler login
+npx wrangler secret put POLLINATIONS_API_KEY
+npx wrangler deploy
+```
+
+Then set:
+
+```
+VITE_API_BASE=https://YOUR-WORKER.workers.dev
+```
