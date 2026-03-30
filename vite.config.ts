@@ -6,6 +6,8 @@ import { inspectAttr } from 'kimi-plugin-inspect-react'
 import type { ServerResponse } from "node:http"
 import Busboy from "busboy"
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 function pollinationsProxy(): Plugin {
   const readRequestBodyText = async (req: Connect.IncomingMessage) => {
     const chunks: Buffer[] = []
@@ -404,11 +406,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: "./",
-    plugins: [inspectAttr(), pollinationsProxy(), react()],
+    plugins: [inspectAttr(), pollinationsProxy(), react(), cloudflare()],
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
       },
     },
-  }
+  };
 })
