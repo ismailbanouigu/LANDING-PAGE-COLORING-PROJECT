@@ -247,7 +247,7 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
                 disabled={isSigningIn}
               >
                 {isSigningIn && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Sign In with Google
+                Sign In
               </Button>
             )}
             <Button
