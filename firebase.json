@@ -1,7 +1,4 @@
 {
-  "functions": {
-    "source": "functions"
-  },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
@@ -14,14 +11,6 @@
       "**/node_modules/**"
     ],
     "rewrites": [
-      {
-        "source": "/api/pollinations/**",
-        "function": "pollinations"
-      },
-      {
-        "source": "/api/convert-coloring",
-        "function": "convertToColoring"
-      },
       {
         "source": "**",
         "destination": "/index.html"

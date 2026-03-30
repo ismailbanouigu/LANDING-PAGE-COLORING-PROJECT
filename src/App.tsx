@@ -23,14 +23,8 @@ import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '@/lib/firebase';
 
-const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/+$/, '')
-
-function apiUrl(path: string) {
-  if (!API_BASE) return path
-  if (path.startsWith('http://') || path.startsWith('https://')) return path
-  if (path.startsWith('/')) return `${API_BASE}${path}`
-  return `${API_BASE}/${path}`
-}
+const POLLINATIONS_UPLOAD_URL = 'https://media.pollinations.ai/upload'
+const POLLINATIONS_IMAGE_BASE = 'https://image.pollinations.ai/prompt'
 
 function scrollToSection(sectionId: string) {
   const id = sectionId.startsWith('#') ? sectionId.slice(1) : sectionId;
@@ -62,60 +56,62 @@ function getOrCreateSessionId() {
   }
 }
 
+function buildPollinationsImageUrl(
+  prompt: string,
+  params: Record<string, string | number | boolean | null | undefined>
+) {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value === null || value === undefined) continue
+    search.set(key, String(value))
+  }
+  const qs = search.toString()
+  return `${POLLINATIONS_IMAGE_BASE}/${encodeURIComponent(prompt)}${qs ? `?${qs}` : ''}`
+}
+
+async function uploadToPollinations(file: File, signal?: AbortSignal) {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(POLLINATIONS_UPLOAD_URL, { method: 'POST', body: form, signal })
+  const text = await res.text()
+  if (!res.ok) throw new Error(text || 'Upload failed')
+  let json: unknown
+  try {
+    json = JSON.parse(text)
+  } catch {
+    throw new Error('Upload returned invalid JSON')
+  }
+  if (!json || typeof json !== 'object') throw new Error('Upload returned invalid JSON')
+  const record = json as Record<string, unknown>
+  const urlValue =
+    typeof record.url === 'string' ? record.url : typeof record.hash_url === 'string' ? record.hash_url : null
+  if (!urlValue) throw new Error('Upload response missing url')
+  return urlValue
+}
+
+function preloadImage(url: string, timeoutMs = 120_000) {
+  return new Promise<void>((resolve, reject) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    const timeout = window.setTimeout(() => {
+      reject(new Error('Generation timed out, please try again'))
+    }, timeoutMs)
+    img.onload = () => {
+      window.clearTimeout(timeout)
+      resolve()
+    }
+    img.onerror = () => {
+      window.clearTimeout(timeout)
+      reject(new Error('Generation failed, please try again'))
+    }
+    img.src = url
+  })
+}
+
 function makePollinationsSeed() {
   const max = 2147483647
   const value = Date.now() % max
   return String(value <= 0 ? 1 : value)
-}
-
-function parseApiErrorText(text: string) {
-  const trimmed = text.trim()
-  if (!trimmed) return 'Request failed'
-  if (!trimmed.startsWith('{')) return trimmed
-  try {
-    const json = JSON.parse(trimmed) as unknown
-    if (typeof json !== 'object' || json === null) return trimmed
-    const record = json as Record<string, unknown>
-    const errorValue = record.error
-    if (typeof errorValue === 'string') return errorValue
-    if (typeof errorValue === 'object' && errorValue !== null) {
-      const errRecord = errorValue as Record<string, unknown>
-      if (typeof errRecord.message === 'string') return errRecord.message
-    }
-    if (typeof record.message === 'string') return record.message
-    return trimmed
-  } catch {
-    return trimmed
-  }
-}
-
-function usePollinationsServerStatus() {
-  const [status, setStatus] = useState<{ reachable: boolean; keyPresent: boolean }>(() => ({
-    reachable: false,
-    keyPresent: false,
-  }));
-
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const res = await fetch(apiUrl('/api/pollinations/status'), { cache: 'no-store' });
-        if (!res.ok) throw new Error('not ok');
-        const json = (await res.json()) as { keyPresent?: unknown };
-        if (cancelled) return;
-        setStatus({ reachable: true, keyPresent: Boolean(json.keyPresent) });
-      } catch {
-        if (cancelled) return;
-        setStatus({ reachable: false, keyPresent: false });
-      }
-    };
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return status;
 }
 
 // ==================== NAVIGATION ====================
@@ -659,7 +655,6 @@ function FeaturesGridSection() {
 
 // ==================== PHOTO TO COLORING FEATURE ====================
 function PhotoToColoringSection() {
-  const pollinationsServer = usePollinationsServerStatus();
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [isConverting, setIsConverting] = useState(false);
@@ -699,160 +694,55 @@ function PhotoToColoringSection() {
   }, [coloredUrl]);
 
   const handleConvert = useCallback(async (fileOverride?: File) => {
-    const file = fileOverride ?? photoFile;
+    const file = fileOverride ?? photoFile
     if (!file) {
-      setError('Please choose a photo first.');
-      return;
+      setError('Please choose a photo first.')
+      return
     }
 
-    setError(null);
-    setIsConverting(true);
+    setError(null)
+    setIsConverting(true)
+
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 120_000)
 
     try {
-      try {
-        const formData = new FormData()
-        formData.append('image', file)
-        const convertRes = await fetch(apiUrl('/api/convert-coloring'), { method: 'POST', body: formData })
+      const publicUrl = await uploadToPollinations(file, controller.signal)
+      const seed = makePollinationsSeed()
 
-        if (convertRes.ok) {
-          const json = (await convertRes.json()) as {
-            success?: unknown
-            imageUrl?: unknown
-            autoColorUrl?: unknown
-            error?: unknown
-          }
-          if (json && json.success === true && typeof json.imageUrl === 'string') {
-            const fetchAsBlobUrl = async (url: string) => {
-              const res = await fetch(apiUrl(`/api/pollinations/fetch?url=${encodeURIComponent(url)}`))
-              if (!res.ok) throw new Error(parseApiErrorText(await res.text()))
-              const blob = await res.blob()
-              return URL.createObjectURL(blob)
-            }
+      const bwPrompt =
+        'Convert this photo into a clean black and white coloring page with bold outlines, no shading, no colors, suitable for kids to color in'
+      const colorPrompt =
+        'Colorize this black and white photograph with highly realistic and vivid natural colors, preserve all original details, textures and lighting'
 
-            const [bwResult, colorResult] = await Promise.allSettled([
-              fetchAsBlobUrl(json.imageUrl),
-              typeof json.autoColorUrl === 'string'
-                ? fetchAsBlobUrl(json.autoColorUrl)
-                : Promise.resolve<string | null>(null),
-            ])
+      const bwUrl = buildPollinationsImageUrl(bwPrompt, {
+        image: publicUrl,
+        model: 'kontext',
+        nologo: true,
+        width: 1024,
+        height: 1024,
+        seed,
+      })
+      const colorUrl = buildPollinationsImageUrl(colorPrompt, {
+        image: publicUrl,
+        model: 'kontext',
+        nologo: true,
+        width: 1024,
+        height: 1024,
+        seed,
+      })
 
-            if (bwResult.status === 'fulfilled') {
-              setResultUrl((prev) => {
-                if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
-                return bwResult.value
-              })
-            }
+      setResultUrl(bwUrl)
+      setColoredUrl(colorUrl)
 
-            if (colorResult.status === 'fulfilled' && colorResult.value) {
-              setColoredUrl((prev) => {
-                if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
-                return colorResult.value
-              })
-            } else {
-              setColoredUrl((prev) => {
-                if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
-                return null
-              })
-            }
-
-            return
-          }
-        }
-      } catch {
-        // fall through to chat pipeline
-      }
-
-      if (!pollinationsServer.reachable || !pollinationsServer.keyPresent) {
-        throw new Error('Photo conversion needs server API key. Configure POLLINATIONS_API_KEY (or deploy Firebase Functions) to enable this feature.')
-      }
-
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(new Error('Failed to read file'));
-        reader.readAsDataURL(file);
-      });
-      const chatResponse = await fetch(apiUrl('/api/pollinations/chat'), {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          model: 'openai',
-          temperature: 0.2,
-          messages: [
-            {
-              role: 'system',
-              content:
-                'Describe the image in one short sentence. Focus on the main subject only. No extra words.',
-            },
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: 'Describe this photo:' },
-                { type: 'image_url', image_url: { url: dataUrl } },
-              ],
-            },
-          ],
-        }),
-      });
-
-      if (!chatResponse.ok) {
-        const message = await chatResponse.text();
-        throw new Error(message || 'Captioning failed');
-      }
-
-      const chatJson = (await chatResponse.json()) as {
-        choices?: Array<{ message?: { content?: unknown } }>;
-      };
-      const captionValue = chatJson.choices?.[0]?.message?.content;
-      const caption =
-        typeof captionValue === 'string' ? captionValue.trim() : '';
-
-      if (!caption) throw new Error('Could not read the photo');
-
-      const coloringPrompt = `Coloring book page line art. Black and white. Clean bold outlines. No shading. No gray. White background. Centered subject. ${caption}`
-      const colorPrompt = `High quality illustration. Vibrant natural colors. Preserve the original photo composition and subject. No text. No watermark. ${caption}`
-
-      const fetchImageUrl = async (promptText: string) => {
-        const seed = makePollinationsSeed()
-        const res = await fetch(
-        apiUrl(`/api/pollinations/image?prompt=${encodeURIComponent(promptText)}&model=flux&seed=${encodeURIComponent(seed)}`)
-        )
-        if (!res.ok) {
-          const message = parseApiErrorText(await res.text())
-          throw new Error(message || 'Generation failed')
-        }
-        const blob = await res.blob()
-        return URL.createObjectURL(blob)
-      }
-
-      const [lineArtResult, colorResult] = await Promise.allSettled([
-        fetchImageUrl(coloringPrompt),
-        fetchImageUrl(colorPrompt),
-      ])
-
-      if (lineArtResult.status === 'fulfilled') {
-        setResultUrl((prev) => {
-          if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
-          return lineArtResult.value
-        })
-      }
-
-      if (colorResult.status === 'fulfilled') {
-        setColoredUrl((prev) => {
-          if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
-          return colorResult.value
-        })
-      }
-
-      if (lineArtResult.status === 'rejected' && colorResult.status === 'rejected') {
-        throw new Error(lineArtResult.reason instanceof Error ? lineArtResult.reason.message : 'Generation failed')
-      }
+      await Promise.all([preloadImage(bwUrl), preloadImage(colorUrl)])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Conversion failed');
+      setError(err instanceof Error ? err.message : 'Conversion failed')
     } finally {
-      setIsConverting(false);
+      window.clearTimeout(timeout)
+      setIsConverting(false)
     }
-  }, [photoFile, pollinationsServer.keyPresent, pollinationsServer.reachable]);
+  }, [photoFile]);
 
   useEffect(() => {
     if (!photoFile) return;
@@ -941,6 +831,8 @@ function PhotoToColoringSection() {
                       <img
                         src={resultUrl}
                         alt="Generated coloring page"
+                        crossOrigin="anonymous"
+                        onError={() => setError('Generation failed, please try again')}
                         className="rounded-xl w-full h-64 object-contain bg-gray-50"
                       />
                       <p className="text-center text-sm text-gray-500 mt-2">Coloring Page</p>
@@ -951,6 +843,8 @@ function PhotoToColoringSection() {
                       <img
                         src={coloredUrl}
                         alt="Auto-colored preview"
+                        crossOrigin="anonymous"
+                        onError={() => setError('Generation failed, please try again')}
                         className="rounded-xl w-full h-64 object-cover"
                       />
                       <p className="text-center text-sm text-gray-500 mt-2">Auto Color</p>
@@ -1025,21 +919,15 @@ function TextToColoringSection() {
     try {
       const coloringPrompt = `Coloring book page line art. Black and white. Clean bold outlines. No shading. No gray. White background. Centered subject. ${effectivePrompt}`
       const seed = makePollinationsSeed()
-      const res = await fetch(
-        apiUrl(`/api/pollinations/image?prompt=${encodeURIComponent(coloringPrompt)}&model=flux&seed=${encodeURIComponent(seed)}`)
-      )
-
-      if (!res.ok) {
-        const message = parseApiErrorText(await res.text())
-        throw new Error(message || 'Generation failed')
-      }
-
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      setGeneratedImageUrl((prev) => {
-        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
-        return url
+      const url = buildPollinationsImageUrl(coloringPrompt, {
+        model: 'flux',
+        seed,
+        nologo: true,
+        width: 1024,
+        height: 1024,
       })
+      setGeneratedImageUrl(url)
+      await preloadImage(url)
     } catch (err) {
       setGenerateError(err instanceof Error ? err.message : 'Generation failed');
     } finally {
@@ -1100,6 +988,8 @@ function TextToColoringSection() {
               <img
                 src={generatedImageUrl}
                 alt="Generated preview"
+                crossOrigin="anonymous"
+                onError={() => setGenerateError('Generation failed, please try again')}
                 className="rounded-xl w-full max-h-[520px] object-contain bg-gray-50"
               />
               <div className="mt-3">
@@ -1168,17 +1058,14 @@ function ColoringBookSection() {
           ? `${baseStyle} Coloring book cover. Large centered title area. Theme: ${t}. Main character: ${c}.`
           : `${baseStyle} Interior coloring page. Theme: ${t}. Main character: ${c}. Page ${pageNumber}.`
       const seed = makePollinationsSeed()
-      const res = await fetch(
-        apiUrl(`/api/pollinations/image?prompt=${encodeURIComponent(prompt)}&model=flux&seed=${encodeURIComponent(seed)}`)
-      )
-
-      if (!res.ok) {
-        const message = parseApiErrorText(await res.text())
-        throw new Error(message || 'Generation failed')
-      }
-
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
+      const url = buildPollinationsImageUrl(prompt, {
+        model: 'flux',
+        seed,
+        nologo: true,
+        width: 1024,
+        height: 1024,
+      })
+      await preloadImage(url)
 
       if (kind === 'cover') {
         setCoverUrl((prev) => {
@@ -1399,7 +1286,6 @@ function ImageEditorSection() {
     label: string
   }
 
-  const pollinationsServer = usePollinationsServerStatus()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [file, setFile] = useState<File | null>(null)
@@ -1509,29 +1395,12 @@ function ImageEditorSection() {
   const uploadIfNeeded = async (targetFile: File, controller: AbortController) => {
     if (uploadedUrl) return uploadedUrl
     setProgressText('Uploading image...')
-    const form = new FormData()
-    form.append('file', targetFile)
-    const res = await fetch(apiUrl('/api/pollinations/upload'), { method: 'POST', body: form, signal: controller.signal })
-    const json = (await res.json()) as { success?: unknown; url?: unknown; error?: unknown }
-    if (!res.ok || json.success !== true || typeof json.url !== 'string') {
-      let message = 'Upload failed'
-      const err = json.error
-      if (typeof err === 'string') message = err
-      else if (err && typeof err === 'object') {
-        const errRecord = err as Record<string, unknown>
-        if (typeof errRecord.message === 'string') message = errRecord.message
-      }
-      throw new Error(message)
-    }
-    setUploadedUrl(json.url)
-    return json.url
+    const url = await uploadToPollinations(targetFile, controller.signal)
+    setUploadedUrl(url)
+    return url
   }
 
   const runEdit = async (override?: Partial<Pick<HistoryItem, 'uploadedUrl' | 'seed' | 'model' | 'prompt' | 'label'>>) => {
-    if (!pollinationsServer.reachable) {
-      setError('API not reachable right now.')
-      return
-    }
     if (!file && !override?.uploadedUrl) {
       setError('Please upload an image first.')
       return
@@ -1559,20 +1428,16 @@ function ImageEditorSection() {
       if (!imageUrl) throw new Error('Missing image url')
 
       setProgressText('Generating result...')
-      const url = apiUrl(
-        `/api/pollinations/image?prompt=${encodeURIComponent(promptText)}&image=${encodeURIComponent(imageUrl)}&model=${encodeURIComponent(effectiveModel)}&width=1024&height=1024&seed=${encodeURIComponent(effectiveSeed)}&nologo=true`
-      )
-      const res = await fetch(url, { signal: controller.signal })
-      if (!res.ok) {
-        const message = parseApiErrorText(await res.text())
-        throw new Error(message || 'Generation failed')
-      }
-      const blob = await res.blob()
-      const outUrl = URL.createObjectURL(blob)
-      setResultUrl((prev) => {
-        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
-        return outUrl
+      const outUrl = buildPollinationsImageUrl(promptText, {
+        image: imageUrl,
+        model: effectiveModel,
+        width: 1024,
+        height: 1024,
+        seed: effectiveSeed,
+        nologo: true,
       })
+      setResultUrl(outUrl)
+      await preloadImage(outUrl)
 
       const item: HistoryItem = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -1597,10 +1462,19 @@ function ImageEditorSection() {
 
   const handleDownload = () => {
     if (!resultUrl) return
-    const a = document.createElement('a')
-    a.href = resultUrl
-    a.download = 'edited.png'
-    a.click()
+    fetch(resultUrl)
+      .then((res) => res.blob())
+      .then((blob) => {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'edited.png'
+        a.click()
+        window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
+      })
+      .catch(() => {
+        window.open(resultUrl, '_blank', 'noopener,noreferrer')
+      })
   }
 
   return (
@@ -1753,7 +1627,7 @@ function ImageEditorSection() {
 
             <Button
               className="w-full bg-gradient-to-r from-violet-500 to-indigo-500 hover:from-violet-600 hover:to-indigo-600 text-white py-6 text-lg rounded-xl"
-              disabled={isWorking || (!file && !uploadedUrl) || !pollinationsServer.reachable}
+              disabled={isWorking || (!file && !uploadedUrl)}
               onClick={() => void runEdit()}
             >
               {isWorking ? (
@@ -1824,7 +1698,13 @@ function ImageEditorSection() {
                   <div className="relative rounded-2xl overflow-hidden bg-black/30">
                     <div className="relative w-full h-[420px]">
                       {resultUrl && (
-                        <img src={resultUrl} alt="After" className="absolute inset-0 w-full h-full object-contain" />
+                        <img
+                          src={resultUrl}
+                          alt="After"
+                          crossOrigin="anonymous"
+                          onError={() => setError('Generation failed, please try again')}
+                          className="absolute inset-0 w-full h-full object-contain"
+                        />
                       )}
                       <img
                         src={previewUrl}
@@ -1878,7 +1758,6 @@ function ImageEditorSection() {
 
 // ==================== COLORIZE DRAWING ====================
 function ColorizeSection() {
-  const pollinationsServer = usePollinationsServerStatus();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [drawingFile, setDrawingFile] = useState<File | null>(null);
@@ -1929,11 +1808,6 @@ function ColorizeSection() {
   }
 
   const handleColorize = async () => {
-    if (!pollinationsServer.reachable || !pollinationsServer.keyPresent) {
-      setError('Colorization needs server API key. Configure POLLINATIONS_API_KEY on the server.')
-      return
-    }
-
     if (!drawingFile) {
       setError('Please choose a black & white image first.')
       return
@@ -1943,40 +1817,20 @@ function ColorizeSection() {
     setIsColorizing(true)
 
     try {
-      const uploadForm = new FormData()
-      uploadForm.append('file', drawingFile)
-      const uploadRes = await fetch(apiUrl('/api/pollinations/upload'), { method: 'POST', body: uploadForm })
-      const uploadJson = (await uploadRes.json()) as { success?: unknown; url?: unknown; error?: unknown }
-      if (!uploadRes.ok || uploadJson.success !== true || typeof uploadJson.url !== 'string') {
-        let message = 'Upload failed'
-        const err = uploadJson.error
-        if (typeof err === 'string') message = err
-        else if (err && typeof err === 'object') {
-          const errRecord = err as Record<string, unknown>
-          if (typeof errRecord.message === 'string') message = errRecord.message
-        }
-        throw new Error(message)
-      }
-
-      const imageUrl = uploadJson.url
       const prompt =
         'Colorize this black and white photo with highly realistic natural colors, preserve all details, textures and lighting'
       const seed = makePollinationsSeed()
-      const res = await fetch(
-        apiUrl(`/api/pollinations/image?prompt=${encodeURIComponent(prompt)}&image=${encodeURIComponent(imageUrl)}&model=kontext&width=1024&height=1024&seed=${encodeURIComponent(seed)}`)
-      )
-
-      if (!res.ok) {
-        const message = parseApiErrorText(await res.text())
-        throw new Error(message || 'Colorization failed')
-      }
-
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      setResultUrl((prev) => {
-        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
-        return url
+      const imageUrl = await uploadToPollinations(drawingFile)
+      const url = buildPollinationsImageUrl(prompt, {
+        image: imageUrl,
+        model: 'kontext',
+        nologo: true,
+        width: 1024,
+        height: 1024,
+        seed,
       })
+      setResultUrl(url)
+      await preloadImage(url)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Colorization failed')
     } finally {
@@ -1986,10 +1840,19 @@ function ColorizeSection() {
 
   const handleDownload = async () => {
     if (!resultUrl) return
-    const a = document.createElement('a')
-    a.href = resultUrl
-    a.download = 'colorized.png'
-    a.click()
+    fetch(resultUrl)
+      .then((res) => res.blob())
+      .then((blob) => {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'colorized.png'
+        a.click()
+        window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
+      })
+      .catch(() => {
+        window.open(resultUrl, '_blank', 'noopener,noreferrer')
+      })
   }
 
   return (
@@ -2090,7 +1953,7 @@ function ColorizeSection() {
               </div>
               <Button
                 onClick={handleColorize}
-                disabled={isColorizing || !drawingFile || !pollinationsServer.reachable || !pollinationsServer.keyPresent}
+                disabled={isColorizing || !drawingFile}
                 className="bg-gradient-to-r from-indigo-600 to-emerald-500 hover:from-indigo-700 hover:to-emerald-600 text-white px-8 py-6 text-lg rounded-xl"
               >
                 <Paintbrush className="w-5 h-5 mr-2" />
@@ -2117,7 +1980,13 @@ function ColorizeSection() {
                         </div>
                       ) : resultUrl ? (
                         <div className="w-full">
-                          <img src={resultUrl} alt="Colorized" className="rounded-xl w-full h-64 object-contain" />
+                          <img
+                            src={resultUrl}
+                            alt="Colorized"
+                            crossOrigin="anonymous"
+                            onError={() => setError('Generation failed, please try again')}
+                            className="rounded-xl w-full h-64 object-contain"
+                          />
                           <p className="text-center text-sm text-gray-500 mt-2">Colorized</p>
                           <div className="mt-3">
                             <Button className="w-full bg-gray-900 text-white hover:bg-gray-800" onClick={handleDownload}>
