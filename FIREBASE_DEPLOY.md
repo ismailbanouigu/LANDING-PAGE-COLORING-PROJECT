@@ -59,3 +59,11 @@ npx firebase-tools deploy --only functions,hosting
 
 - `/api/pollinations/image` and `/api/pollinations/chat` are served by Firebase Functions in production (see `firebase.json` rewrites).
 - If `keyPresent` is false, Photo→Coloring and Colorize Drawing are disabled (they require chat, which requires the server key).
+
+### Cloudflare / External Hosting
+
+If you host the frontend on Cloudflare (or any other domain) but keep the API on Firebase Hosting, set:
+
+```
+VITE_API_BASE=https://YOUR-PROJECT.web.app
+```

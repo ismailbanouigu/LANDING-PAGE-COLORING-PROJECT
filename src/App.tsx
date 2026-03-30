@@ -23,6 +23,15 @@ import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '@/lib/firebase';
 
+const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/+$/, '')
+
+function apiUrl(path: string) {
+  if (!API_BASE) return path
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  if (path.startsWith('/')) return `${API_BASE}${path}`
+  return `${API_BASE}/${path}`
+}
+
 function scrollToSection(sectionId: string) {
   const id = sectionId.startsWith('#') ? sectionId.slice(1) : sectionId;
   const el = document.getElementById(id);
@@ -90,7 +99,7 @@ function usePollinationsServerStatus() {
     let cancelled = false;
     const run = async () => {
       try {
-        const res = await fetch('/api/pollinations/status', { cache: 'no-store' });
+        const res = await fetch(apiUrl('/api/pollinations/status'), { cache: 'no-store' });
         if (!res.ok) throw new Error('not ok');
         const json = (await res.json()) as { keyPresent?: unknown };
         if (cancelled) return;
@@ -702,7 +711,7 @@ function PhotoToColoringSection() {
       try {
         const formData = new FormData()
         formData.append('image', file)
-        const convertRes = await fetch('/api/convert-coloring', { method: 'POST', body: formData })
+        const convertRes = await fetch(apiUrl('/api/convert-coloring'), { method: 'POST', body: formData })
 
         if (convertRes.ok) {
           const json = (await convertRes.json()) as {
@@ -713,7 +722,7 @@ function PhotoToColoringSection() {
           }
           if (json && json.success === true && typeof json.imageUrl === 'string') {
             const fetchAsBlobUrl = async (url: string) => {
-              const res = await fetch(`/api/pollinations/fetch?url=${encodeURIComponent(url)}`)
+              const res = await fetch(apiUrl(`/api/pollinations/fetch?url=${encodeURIComponent(url)}`))
               if (!res.ok) throw new Error(parseApiErrorText(await res.text()))
               const blob = await res.blob()
               return URL.createObjectURL(blob)
@@ -762,7 +771,7 @@ function PhotoToColoringSection() {
         reader.onerror = () => reject(new Error('Failed to read file'));
         reader.readAsDataURL(file);
       });
-      const chatResponse = await fetch('/api/pollinations/chat', {
+      const chatResponse = await fetch(apiUrl('/api/pollinations/chat'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -805,7 +814,7 @@ function PhotoToColoringSection() {
       const fetchImageUrl = async (promptText: string) => {
         const seed = makePollinationsSeed()
         const res = await fetch(
-          `/api/pollinations/image?prompt=${encodeURIComponent(promptText)}&model=flux&seed=${encodeURIComponent(seed)}`
+        apiUrl(`/api/pollinations/image?prompt=${encodeURIComponent(promptText)}&model=flux&seed=${encodeURIComponent(seed)}`)
         )
         if (!res.ok) {
           const message = parseApiErrorText(await res.text())
@@ -1016,7 +1025,7 @@ function TextToColoringSection() {
       const coloringPrompt = `Coloring book page line art. Black and white. Clean bold outlines. No shading. No gray. White background. Centered subject. ${effectivePrompt}`
       const seed = makePollinationsSeed()
       const res = await fetch(
-        `/api/pollinations/image?prompt=${encodeURIComponent(coloringPrompt)}&model=flux&seed=${encodeURIComponent(seed)}`
+        apiUrl(`/api/pollinations/image?prompt=${encodeURIComponent(coloringPrompt)}&model=flux&seed=${encodeURIComponent(seed)}`)
       )
 
       if (!res.ok) {
@@ -1159,7 +1168,7 @@ function ColoringBookSection() {
           : `${baseStyle} Interior coloring page. Theme: ${t}. Main character: ${c}. Page ${pageNumber}.`
       const seed = makePollinationsSeed()
       const res = await fetch(
-        `/api/pollinations/image?prompt=${encodeURIComponent(prompt)}&model=flux&seed=${encodeURIComponent(seed)}`
+        apiUrl(`/api/pollinations/image?prompt=${encodeURIComponent(prompt)}&model=flux&seed=${encodeURIComponent(seed)}`)
       )
 
       if (!res.ok) {
@@ -1443,7 +1452,7 @@ function ColorizeSection() {
     try {
       const uploadForm = new FormData()
       uploadForm.append('file', drawingFile)
-      const uploadRes = await fetch('/api/pollinations/upload', { method: 'POST', body: uploadForm })
+      const uploadRes = await fetch(apiUrl('/api/pollinations/upload'), { method: 'POST', body: uploadForm })
       const uploadJson = (await uploadRes.json()) as { success?: unknown; url?: unknown; error?: unknown }
       if (!uploadRes.ok || uploadJson.success !== true || typeof uploadJson.url !== 'string') {
         let message = 'Upload failed'
@@ -1461,7 +1470,7 @@ function ColorizeSection() {
         'Colorize this black and white photo with highly realistic natural colors, preserve all details, textures and lighting'
       const seed = makePollinationsSeed()
       const res = await fetch(
-        `/api/pollinations/image?prompt=${encodeURIComponent(prompt)}&image=${encodeURIComponent(imageUrl)}&model=kontext&width=1024&height=1024&seed=${encodeURIComponent(seed)}`
+        apiUrl(`/api/pollinations/image?prompt=${encodeURIComponent(prompt)}&image=${encodeURIComponent(imageUrl)}&model=kontext&width=1024&height=1024&seed=${encodeURIComponent(seed)}`)
       )
 
       if (!res.ok) {
