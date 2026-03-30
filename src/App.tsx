@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import inkbloomLogo from '@/assets/inkbloom-logo.svg';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
@@ -173,7 +174,7 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
           {/* Logo */}
           <a href="#" className="flex items-center gap-2 group">
             <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Palette className="w-5 h-5 lg:w-6 lg:h-6 text-white" />
+              <img src={inkbloomLogo} alt="InkBloom" className="w-6 h-6 lg:w-7 lg:h-7" />
             </div>
             <div className="flex flex-col">
               <span className="text-lg lg:text-xl font-bold leading-tight">
