@@ -123,7 +123,15 @@ export default {
       }
       try {
         const data = JSON.parse(text) as unknown
-        return jsonResponse(data, { status: 200 })
+        if (!data || typeof data !== 'object') {
+          return jsonResponse({ success: false, error: { message: 'Upload returned invalid JSON.' } }, { status: 502 })
+        }
+        const record = data as Record<string, unknown>
+        const urlValue = typeof record.url === 'string' ? record.url : typeof record.hash_url === 'string' ? record.hash_url : null
+        if (!urlValue) {
+          return jsonResponse({ success: false, error: { message: 'Upload response missing url.' } }, { status: 502 })
+        }
+        return jsonResponse({ success: true, url: urlValue }, { status: 200 })
       } catch {
         return jsonResponse({ success: false, error: { message: 'Upload returned invalid JSON.' } }, { status: 502 })
       }

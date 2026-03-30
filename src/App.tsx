@@ -157,6 +157,7 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
         { label: 'Photo to Coloring Page', href: '#photo-feature', icon: '📸' },
         { label: 'Text to Coloring Page', href: '#text-feature', icon: '✏️' },
         { label: 'Coloring Book Generator', href: '#book-feature', icon: '📚' },
+        { label: 'AI Image Editor', href: '#edit-feature', icon: '🪄' },
         { label: 'Colorize Drawing', href: '#colorize-feature', icon: '🎨' },
       ]
     },
@@ -1381,6 +1382,498 @@ function ColoringBookSection() {
       </div>
     </section>
   );
+}
+
+function ImageEditorSection() {
+  type EditMode = 'colorize' | 'enhance' | 'background' | 'style' | 'custom'
+  type StyleOption = 'Anime' | 'Oil Painting' | 'Watercolor' | 'Pixel Art' | 'Sketch' | 'Pop Art'
+  type ModelOption = 'kontext' | 'gptimage' | 'seedream'
+  type HistoryItem = {
+    id: string
+    createdAt: number
+    mode: EditMode
+    model: ModelOption
+    seed: string
+    uploadedUrl: string
+    prompt: string
+    label: string
+  }
+
+  const pollinationsServer = usePollinationsServerStatus()
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [file, setFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null)
+  const [mode, setMode] = useState<EditMode>('colorize')
+  const [model, setModel] = useState<ModelOption>('kontext')
+  const [style, setStyle] = useState<StyleOption>('Anime')
+  const [customPrompt, setCustomPrompt] = useState('')
+  const [isWorking, setIsWorking] = useState(false)
+  const [progressText, setProgressText] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [resultUrl, setResultUrl] = useState<string | null>(null)
+  const [compare, setCompare] = useState(50)
+  const [history, setHistory] = useState<HistoryItem[]>(() => {
+    try {
+      const raw = localStorage.getItem('INKBLOOM_EDIT_HISTORY')
+      if (!raw) return []
+      const data = JSON.parse(raw) as unknown
+      if (!Array.isArray(data)) return []
+      return data
+        .filter((x) => x && typeof x === 'object')
+        .slice(0, 10) as HistoryItem[]
+    } catch {
+      return []
+    }
+  })
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl((prev) => {
+        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+        return null
+      })
+      setUploadedUrl(null)
+      return
+    }
+
+    const url = URL.createObjectURL(file)
+    setPreviewUrl((prev) => {
+      if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+      return url
+    })
+    return () => URL.revokeObjectURL(url)
+  }, [file])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('INKBLOOM_EDIT_HISTORY', JSON.stringify(history.slice(0, 10)))
+    } catch {
+      return
+    }
+  }, [history])
+
+  useEffect(() => {
+    return () => {
+      if (resultUrl?.startsWith('blob:')) URL.revokeObjectURL(resultUrl)
+    }
+  }, [resultUrl])
+
+  const handleFileSelect = (selected: File) => {
+    if (!selected.type.startsWith('image/')) {
+      setError('Please upload an image (JPG, PNG, WEBP).')
+      return
+    }
+    if (selected.size > 10 * 1024 * 1024) {
+      setError('File too large. Max 10MB.')
+      return
+    }
+    setError(null)
+    setFile(selected)
+    setUploadedUrl(null)
+    setResultUrl((prev) => {
+      if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+      return null
+    })
+  }
+
+  const buildPrompt = () => {
+    const base =
+      'Apply the edit to the uploaded image. Keep the same composition and subject. No text. No watermark.'
+    if (mode === 'colorize') {
+      return `Colorize this black and white photograph with highly realistic and vivid natural colors, preserve all original details, textures and lighting. ${base}`
+    }
+    if (mode === 'enhance') {
+      return `Enhance this image, improve quality, sharpen details, fix lighting and colors, make it look professional. ${base}`
+    }
+    if (mode === 'background') {
+      return `Remove the background and replace it with a clean white background. ${base}`
+    }
+    if (mode === 'style') {
+      const styleMap: Record<StyleOption, string> = {
+        Anime: 'anime illustration',
+        'Oil Painting': 'oil painting',
+        Watercolor: 'watercolor',
+        'Pixel Art': 'pixel art',
+        Sketch: 'pencil sketch',
+        'Pop Art': 'pop art',
+      }
+      return `Stylize this image into a ${styleMap[style]} style while preserving the original composition and subject. ${base}`
+    }
+    const trimmed = customPrompt.trim()
+    if (!trimmed) return `Enhance this image, improve quality, sharpen details, fix lighting and colors, make it look professional. ${base}`
+    return `${trimmed}. ${base}`
+  }
+
+  const uploadIfNeeded = async (targetFile: File, controller: AbortController) => {
+    if (uploadedUrl) return uploadedUrl
+    setProgressText('Uploading image...')
+    const form = new FormData()
+    form.append('file', targetFile)
+    const res = await fetch(apiUrl('/api/pollinations/upload'), { method: 'POST', body: form, signal: controller.signal })
+    const json = (await res.json()) as { success?: unknown; url?: unknown; error?: unknown }
+    if (!res.ok || json.success !== true || typeof json.url !== 'string') {
+      let message = 'Upload failed'
+      const err = json.error
+      if (typeof err === 'string') message = err
+      else if (err && typeof err === 'object') {
+        const errRecord = err as Record<string, unknown>
+        if (typeof errRecord.message === 'string') message = errRecord.message
+      }
+      throw new Error(message)
+    }
+    setUploadedUrl(json.url)
+    return json.url
+  }
+
+  const runEdit = async (override?: Partial<Pick<HistoryItem, 'uploadedUrl' | 'seed' | 'model' | 'prompt' | 'label'>>) => {
+    if (!pollinationsServer.reachable) {
+      setError('API not reachable right now.')
+      return
+    }
+    if (!file && !override?.uploadedUrl) {
+      setError('Please upload an image first.')
+      return
+    }
+
+    setError(null)
+    setIsWorking(true)
+
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 120_000)
+    const started = Date.now()
+    const tick = window.setInterval(() => {
+      const seconds = Math.max(0, Math.floor((Date.now() - started) / 1000))
+      setProgressText((prev) => (prev ? `${prev} (${seconds}s)` : `Working... (${seconds}s)`))
+    }, 1000)
+
+    try {
+      const effectiveSeed = override?.seed ?? makePollinationsSeed()
+      const effectiveModel = override?.model ?? model
+      const promptText = override?.prompt ?? buildPrompt()
+      const label = override?.label ?? mode
+
+      setProgressText('Preparing request...')
+      const imageUrl = override?.uploadedUrl ?? (file ? await uploadIfNeeded(file, controller) : null)
+      if (!imageUrl) throw new Error('Missing image url')
+
+      setProgressText('Generating result...')
+      const url = apiUrl(
+        `/api/pollinations/image?prompt=${encodeURIComponent(promptText)}&image=${encodeURIComponent(imageUrl)}&model=${encodeURIComponent(effectiveModel)}&width=1024&height=1024&seed=${encodeURIComponent(effectiveSeed)}&nologo=true`
+      )
+      const res = await fetch(url, { signal: controller.signal })
+      if (!res.ok) {
+        const message = parseApiErrorText(await res.text())
+        throw new Error(message || 'Generation failed')
+      }
+      const blob = await res.blob()
+      const outUrl = URL.createObjectURL(blob)
+      setResultUrl((prev) => {
+        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+        return outUrl
+      })
+
+      const item: HistoryItem = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        createdAt: Date.now(),
+        mode,
+        model: effectiveModel,
+        seed: effectiveSeed,
+        uploadedUrl: imageUrl,
+        prompt: promptText,
+        label,
+      }
+      setHistory((prev) => [item, ...prev].slice(0, 10))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Edit failed')
+    } finally {
+      window.clearTimeout(timeout)
+      window.clearInterval(tick)
+      setProgressText(null)
+      setIsWorking(false)
+    }
+  }
+
+  const handleDownload = () => {
+    if (!resultUrl) return
+    const a = document.createElement('a')
+    a.href = resultUrl
+    a.download = 'edited.png'
+    a.click()
+  }
+
+  return (
+    <section id="edit-feature" className="py-20 bg-slate-950 text-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid lg:grid-cols-2 gap-12 items-start">
+          <div className="space-y-6">
+            <Badge className="bg-indigo-500/20 text-indigo-200 border border-indigo-500/30">AI Image Editing</Badge>
+            <h2 className="text-3xl lg:text-5xl font-bold">
+              Edit Photos with <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-emerald-300">AI</span>
+            </h2>
+            <p className="text-slate-300 leading-relaxed">
+              Upload an image, choose an edit, pick a model, and generate a high-quality result. Includes before/after comparison, download, and history.
+            </p>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div className="font-semibold">kontext</div>
+                <div className="text-sm text-slate-300">Fast</div>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div className="font-semibold">gptimage</div>
+                <div className="text-sm text-slate-300">High quality</div>
+              </div>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) handleFileSelect(f)
+              }}
+            />
+
+            <div
+              role="button"
+              tabIndex={0}
+              className={`rounded-xl border-2 border-dashed p-5 transition-colors ${isDragging ? 'border-violet-400 bg-white/5' : 'border-white/15 hover:border-violet-400/70'}`}
+              onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click()
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault()
+                setIsDragging(true)
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setIsDragging(true)
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault()
+                setIsDragging(false)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                setIsDragging(false)
+                const f = e.dataTransfer.files?.[0]
+                if (f) handleFileSelect(f)
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <Upload className="w-5 h-5 text-violet-300" />
+                <div className="flex-1">
+                  <div className="font-medium">{file ? file.name : 'Drag & drop or click to upload'}</div>
+                  <div className="text-sm text-slate-400">JPG, PNG, WEBP up to 10MB</div>
+                </div>
+                {file && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-white/20 text-white hover:bg-white/10"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setFile(null)
+                      setUploadedUrl(null)
+                      setResultUrl((prev) => {
+                        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+                        return null
+                      })
+                    }}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div className="text-sm text-slate-300 mb-2">Edit</div>
+                <select
+                  className="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2"
+                  value={mode}
+                  onChange={(e) => setMode(e.target.value as EditMode)}
+                >
+                  <option value="colorize">Colorize</option>
+                  <option value="enhance">Enhance</option>
+                  <option value="background">Background Remove</option>
+                  <option value="style">Style Transfer</option>
+                  <option value="custom">Custom Edit</option>
+                </select>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div className="text-sm text-slate-300 mb-2">Model</div>
+                <select
+                  className="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value as ModelOption)}
+                >
+                  <option value="kontext">kontext (fast)</option>
+                  <option value="gptimage">gptimage (high quality)</option>
+                  <option value="seedream">seedream (creative)</option>
+                </select>
+              </div>
+            </div>
+
+            {mode === 'style' && (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div className="text-sm text-slate-300 mb-2">Style</div>
+                <select
+                  className="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2"
+                  value={style}
+                  onChange={(e) => setStyle(e.target.value as StyleOption)}
+                >
+                  <option>Anime</option>
+                  <option>Oil Painting</option>
+                  <option>Watercolor</option>
+                  <option>Pixel Art</option>
+                  <option>Sketch</option>
+                  <option>Pop Art</option>
+                </select>
+              </div>
+            )}
+
+            {mode === 'custom' && (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div className="text-sm text-slate-300 mb-2">Custom Prompt</div>
+                <textarea
+                  className="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2 min-h-[100px]"
+                  value={customPrompt}
+                  onChange={(e) => setCustomPrompt(e.target.value)}
+                  placeholder="Type your edit instructions..."
+                />
+              </div>
+            )}
+
+            <Button
+              className="w-full bg-gradient-to-r from-violet-500 to-indigo-500 hover:from-violet-600 hover:to-indigo-600 text-white py-6 text-lg rounded-xl"
+              disabled={isWorking || (!file && !uploadedUrl) || !pollinationsServer.reachable}
+              onClick={() => void runEdit()}
+            >
+              {isWorking ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  {progressText ?? 'Working...'}
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-5 h-5 mr-2" />
+                  Generate Edit
+                </>
+              )}
+            </Button>
+
+            {error && (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-100 flex items-center justify-between gap-3">
+                <div className="text-sm">{error}</div>
+                <Button
+                  variant="outline"
+                  className="border-red-500/40 text-red-100 hover:bg-red-500/20"
+                  onClick={() => void runEdit()}
+                  disabled={isWorking}
+                >
+                  Retry
+                </Button>
+              </div>
+            )}
+
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+              <div className="text-sm text-slate-300 mb-3 flex items-center justify-between">
+                <span>History</span>
+                <span className="text-xs text-slate-400">Last 10</span>
+              </div>
+              <div className="space-y-2">
+                {history.length === 0 ? (
+                  <div className="text-sm text-slate-400">No edits yet.</div>
+                ) : (
+                  history.slice(0, 10).map((h) => (
+                    <div key={h.id} className="flex items-center justify-between gap-3 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="text-sm truncate">{h.label}</div>
+                        <div className="text-xs text-slate-400 truncate">{h.model} · seed {h.seed}</div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="border-white/15 text-white hover:bg-white/10"
+                        onClick={() => void runEdit({ uploadedUrl: h.uploadedUrl, seed: h.seed, model: h.model, prompt: h.prompt, label: h.label })}
+                        disabled={isWorking}
+                      >
+                        Load
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="bg-white/5 border border-white/10 rounded-3xl p-5">
+              {!previewUrl ? (
+                <div className="h-[420px] flex items-center justify-center text-slate-400">
+                  Upload an image to start editing.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="relative rounded-2xl overflow-hidden bg-black/30">
+                    <div className="relative w-full h-[420px]">
+                      {resultUrl && (
+                        <img src={resultUrl} alt="After" className="absolute inset-0 w-full h-full object-contain" />
+                      )}
+                      <img
+                        src={previewUrl}
+                        alt="Before"
+                        className="absolute inset-0 w-full h-full object-contain"
+                        style={resultUrl ? { clipPath: `inset(0 ${100 - compare}% 0 0)` } : undefined}
+                      />
+                      {resultUrl && (
+                        <div className="absolute inset-y-0" style={{ left: `${compare}%` }}>
+                          <div className="w-0.5 h-full bg-white/70" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {resultUrl && (
+                    <div className="space-y-3">
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={compare}
+                        onChange={(e) => setCompare(Number(e.target.value))}
+                        className="w-full"
+                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        <Button className="bg-gray-900 text-white hover:bg-gray-800" onClick={handleDownload}>
+                          <Download className="w-4 h-4 mr-2" />
+                          Download
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="border-white/15 text-white hover:bg-white/10"
+                          onClick={() => void runEdit()}
+                          disabled={isWorking}
+                        >
+                          Retry
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
 }
 
 // ==================== COLORIZE DRAWING ====================
@@ -2991,6 +3484,7 @@ function App() {
         <PhotoToColoringSection />
         <TextToColoringSection />
         <ColoringBookSection />
+        <ImageEditorSection />
         <ColorizeSection />
         <GallerySection />
         <OnlineColoringSection />
