@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import JSZip from 'jszip';
 import { 
   ChevronDown, Sparkles, Check, Search, Star, Menu, X,
   Palette, Zap, CreditCard, Users, Image as ImageIcon,
@@ -1267,6 +1268,7 @@ function ColoringBookSection() {
   const [pages, setPages] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isDownloadingAll, setIsDownloadingAll] = useState(false)
+  const [zipProgress, setZipProgress] = useState<{ current: number; total: number } | null>(null)
 
   useEffect(() => {
     return () => {
@@ -1345,12 +1347,33 @@ function ColoringBookSection() {
   const downloadAll = async () => {
     if (!pages.length) return
     setIsDownloadingAll(true)
+    setZipProgress({ current: 0, total: pages.length })
     try {
+      const zip = new JSZip()
       for (let i = 0; i < pages.length; i++) {
-        await downloadUrlAsPng(pages[i], `inkbloom-book-page-${i + 1}.png`)
-        if (i < pages.length - 1) await sleep(1500)
+        setZipProgress({ current: i + 1, total: pages.length })
+        const res = await fetch(pages[i])
+        if (!res.ok) throw new Error('Download failed. Please try again.')
+        const blob = await res.blob()
+        zip.file(`inkbloom-book-page-${i + 1}.png`, blob)
+        if (i < pages.length - 1) await sleep(1000)
       }
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(zipBlob)
+      const safeTheme = (theme || 'inkbloom-book')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '')
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${safeTheme || 'inkbloom-book'}.zip`
+      a.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Download failed. Please try again.')
     } finally {
+      setZipProgress(null)
       setIsDownloadingAll(false)
     }
   }
@@ -1413,10 +1436,25 @@ function ColoringBookSection() {
                 onClick={() => void downloadAll()}
                 disabled={isGenerating || isDownloadingAll || pages.length === 0}
               >
-                {isDownloadingAll ? 'Downloading...' : 'Download All'}
+                {isDownloadingAll ? 'Preparing ZIP...' : 'Download All (ZIP)'}
               </Button>
             </div>
           </div>
+
+          {zipProgress && (
+            <div className="mt-2">
+              <div className="flex justify-between text-sm text-gray-600 mb-2">
+                <span>Preparing ZIP {zipProgress.current} of {zipProgress.total}...</span>
+                <span>{Math.round((zipProgress.current / zipProgress.total) * 100)}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-600 to-emerald-500"
+                  style={{ width: `${(zipProgress.current / zipProgress.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           {progress && (
             <div className="mt-2">
