@@ -111,6 +111,21 @@ function preloadImage(url: string, timeoutMs = 120_000) {
   })
 }
 
+async function preloadImageWithRetry(url: string, timeoutMs: number, retries: number) {
+  let lastError: unknown = null
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      await preloadImage(url, timeoutMs)
+      return
+    } catch (err) {
+      lastError = err
+      if (attempt < retries) await new Promise<void>((r) => window.setTimeout(r, 1000))
+    }
+  }
+  if (lastError instanceof Error) throw lastError
+  throw new Error('Generation failed, please try again')
+}
+
 function makePollinationsSeed() {
   const max = 2147483647
   const value = Date.now() % max
@@ -322,7 +337,7 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1">
             {navItems.map((item, index) => (
               <div 
                 key={index}
@@ -366,7 +381,7 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
           </nav>
 
           {/* CTA Buttons */}
-          <div className="hidden lg:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-3">
             {user ? (
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50">
@@ -407,7 +422,7 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
 
           {/* Mobile Menu Button */}
           <button 
-            className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="md:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -417,7 +432,7 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-white border-t border-gray-100">
+        <div className="md:hidden bg-white border-t border-gray-100">
           <ScrollArea className="h-[calc(100vh-80px)]">
             <div className="p-4 space-y-2">
               {navItems.map((item, index) => (
@@ -905,7 +920,7 @@ function PhotoToColoringSection() {
       })
 
       setResultUrl(bwUrl)
-      await preloadImage(bwUrl)
+      await preloadImageWithRetry(bwUrl, 120_000, 1)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Conversion failed')
     } finally {
@@ -1106,7 +1121,7 @@ function TextToColoringSection() {
       })
       const slowTimer = window.setTimeout(() => setSlowNotice(true), 30_000)
       try {
-        await preloadImage(url, 60_000)
+        await preloadImageWithRetry(url, 120_000, 1)
       } finally {
         window.clearTimeout(slowTimer)
       }
@@ -1329,7 +1344,7 @@ function ColoringBookSection() {
           nologo: true,
           seed,
         })
-        await preloadImage(url, 60_000)
+        await preloadImageWithRetry(url, 120_000, 1)
         generated.push(url)
         setPages([...generated])
         if (i < clampedCount) await sleep(5000)
@@ -1685,7 +1700,7 @@ function ImageEditorSection() {
         nologo: true,
       })
       setResultUrl(outUrl)
-      await preloadImage(outUrl)
+      await preloadImageWithRetry(outUrl, 120_000, 1)
 
       const item: HistoryItem = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -2087,7 +2102,7 @@ function ColorizeSection() {
       setResultUrl(url)
       const slowTimer = window.setTimeout(() => setSlowNotice(true), 30_000)
       try {
-        await preloadImage(url, 60_000)
+        await preloadImageWithRetry(url, 120_000, 1)
       } finally {
         window.clearTimeout(slowTimer)
       }
