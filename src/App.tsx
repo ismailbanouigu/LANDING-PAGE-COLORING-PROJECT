@@ -715,7 +715,6 @@ function PhotoToColoringSection() {
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [isConverting, setIsConverting] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
-  const [coloredUrl, setColoredUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastAutoConvertedId, setLastAutoConvertedId] = useState<string | null>(null);
 
@@ -743,12 +742,6 @@ function PhotoToColoringSection() {
     };
   }, [resultUrl]);
 
-  useEffect(() => {
-    return () => {
-      if (coloredUrl?.startsWith('blob:')) URL.revokeObjectURL(coloredUrl);
-    };
-  }, [coloredUrl]);
-
   const handleConvert = useCallback(async (fileOverride?: File) => {
     const file = fileOverride ?? photoFile
     if (!file) {
@@ -768,8 +761,6 @@ function PhotoToColoringSection() {
 
       const bwPrompt =
         'Convert this photo into a clean black and white coloring page with bold outlines, no shading, no colors, suitable for kids to color in'
-      const colorPrompt =
-        'Colorize this black and white photograph with highly realistic and vivid natural colors, preserve all original details, textures and lighting'
 
       const bwUrl = buildPollinationsImageUrl(bwPrompt, {
         image: publicUrl,
@@ -779,19 +770,9 @@ function PhotoToColoringSection() {
         height: 1024,
         seed,
       })
-      const colorUrl = buildPollinationsImageUrl(colorPrompt, {
-        image: publicUrl,
-        model: 'kontext',
-        nologo: true,
-        width: 1024,
-        height: 1024,
-        seed,
-      })
 
       setResultUrl(bwUrl)
-      setColoredUrl(colorUrl)
-
-      await Promise.all([preloadImage(bwUrl), preloadImage(colorUrl)])
+      await preloadImage(bwUrl)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Conversion failed')
     } finally {
@@ -872,8 +853,8 @@ function PhotoToColoringSection() {
           
           <div className="order-1 lg:order-2">
             <div className="relative">
-              {photoPreviewUrl && (resultUrl || coloredUrl) ? (
-                <div className={`grid gap-4 ${coloredUrl && resultUrl ? 'grid-cols-3' : 'grid-cols-2'}`}>
+              {photoPreviewUrl && resultUrl ? (
+                <div className="grid gap-4 grid-cols-2">
                   <div className="bg-white rounded-2xl shadow-lg p-3">
                     <img
                       src={photoPreviewUrl}
@@ -892,18 +873,6 @@ function PhotoToColoringSection() {
                         className="rounded-xl w-full h-64 object-contain bg-gray-50"
                       />
                       <p className="text-center text-sm text-gray-500 mt-2">Coloring Page</p>
-                    </div>
-                  )}
-                  {coloredUrl && (
-                    <div className="bg-white rounded-2xl shadow-lg p-3">
-                      <img
-                        src={coloredUrl}
-                        alt="Auto-colored preview"
-                        crossOrigin="anonymous"
-                        onError={() => setError('Generation failed, please try again')}
-                        className="rounded-xl w-full h-64 object-cover"
-                      />
-                      <p className="text-center text-sm text-gray-500 mt-2">Auto Color</p>
                     </div>
                   )}
                 </div>
