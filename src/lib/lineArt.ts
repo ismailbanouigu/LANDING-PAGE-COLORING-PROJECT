@@ -26,7 +26,13 @@ function getOrt(): Ort {
     throw new Error('AI model failed to load, please try again')
   }
   const record = ortCandidate as Record<string, unknown>
-  if (typeof record.InferenceSession !== 'object' || record.InferenceSession === null) {
+  const inference = record.InferenceSession
+  if (!inference || (typeof inference !== 'object' && typeof inference !== 'function')) {
+    throw new Error('AI model failed to load, please try again')
+  }
+  const create =
+    typeof inference === 'object' && inference !== null ? (inference as Record<string, unknown>).create : undefined
+  if (typeof create !== 'function') {
     throw new Error('AI model failed to load, please try again')
   }
   if (typeof record.Tensor !== 'function') {
@@ -121,4 +127,3 @@ export async function convertImageToLineArtDataUrl(image: CanvasImageSource) {
   outCtx.putImageData(outImageData, 0, 0)
   return outputCanvas.toDataURL('image/png')
 }
-
