@@ -6,6 +6,7 @@ This project is a Single Page Application (React Router). The Worker must serve 
 
 - SPA fallback is implemented in [worker.ts](./worker.ts).
 - Static assets are served from `./dist` via [wrangler.toml](./wrangler.toml).
+  - The worker name is controlled by `wrangler.toml` (`name = "coloring-project1"`).
 
 ## Cloudflare “Builds & Deployments” settings
 
@@ -27,4 +28,3 @@ npm install
 npm run build
 npx wrangler deploy
 ```
-
