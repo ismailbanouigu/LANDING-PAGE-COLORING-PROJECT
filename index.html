@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>InkBloom</title>
+    <script type="module">
+      import deepai from 'https://cdn.skypack.dev/deepai'
+      window.deepai = deepai
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort.min.js"></script>
   </head>
   <body>
     <div id="root"></div>

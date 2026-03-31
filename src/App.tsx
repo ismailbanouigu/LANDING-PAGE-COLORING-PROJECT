@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import JSZip from 'jszip';
+import { jsPDF } from 'jspdf';
 import { 
   ChevronDown, Sparkles, Check, Search, Star, Menu, X,
   Palette, Zap, CreditCard, Users, Image as ImageIcon,
@@ -21,6 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import inkbloomLogo from '@/assets/inkbloom-logo.svg';
+import { convertFileToLineArtDataUrl, getLineArtSession } from '@/lib/lineArt';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
@@ -90,6 +92,83 @@ async function uploadToPollinations(file: File, signal?: AbortSignal) {
     typeof record.url === 'string' ? record.url : typeof record.hash_url === 'string' ? record.hash_url : null
   if (!urlValue) throw new Error('Upload response missing url')
   return urlValue
+}
+
+const DEEPAI_COLORIZER_URL = 'https://api.deepai.org/api/colorizer'
+const DEEPAI_QUICKSTART_KEY = 'quickstart-QUdJIGlzIGNvbWluZy4uLi4K'
+
+async function colorizeWithDeepAI(image: File | string, signal?: AbortSignal) {
+  const env = (import.meta as unknown as { env?: Record<string, string> }).env
+  const key = env?.VITE_DEEPAI_API_KEY || DEEPAI_QUICKSTART_KEY
+
+  type DeepAiClient = {
+    setApiKey: (k: string) => void
+    callStandardApi: (name: string, inputs: Record<string, unknown>) => Promise<unknown>
+  }
+
+  const deepaiCandidate =
+    typeof window !== 'undefined' ? (window as unknown as { deepai?: unknown }).deepai : undefined
+
+  const deepai = (() => {
+    if (!deepaiCandidate || typeof deepaiCandidate !== 'object') return null
+    const record = deepaiCandidate as Record<string, unknown>
+    if (typeof record.setApiKey !== 'function') return null
+    if (typeof record.callStandardApi !== 'function') return null
+    return deepaiCandidate as unknown as DeepAiClient
+  })()
+
+  if (deepai?.setApiKey && deepai?.callStandardApi) {
+    deepai.setApiKey(String(key))
+    const response = await deepai.callStandardApi('colorizer', { image })
+    const outputUrl =
+      response && typeof response === 'object' && typeof (response as Record<string, unknown>).output_url === 'string'
+        ? String((response as Record<string, unknown>).output_url)
+        : null
+    if (!outputUrl) throw new Error('Colorization failed, please try again')
+    return outputUrl
+  }
+
+  const form = new FormData()
+  form.append('image', image)
+
+  const res = await fetch(DEEPAI_COLORIZER_URL, {
+    method: 'POST',
+    headers: {
+      'api-key': String(key),
+    },
+    body: form,
+    signal,
+  })
+
+  let json: unknown = null
+  try {
+    json = await res.json()
+  } catch {
+    json = null
+  }
+
+  if (!res.ok) {
+    const errText =
+      json && typeof json === 'object' && json !== null && typeof (json as Record<string, unknown>).err === 'string'
+        ? String((json as Record<string, unknown>).err)
+        : null
+    const message =
+      errText ||
+      (typeof json === 'string' && json.trim() ? json.trim() : '') ||
+      'Colorization failed, please try again'
+    throw new Error(message)
+  }
+
+  const outputUrl =
+    json &&
+    typeof json === 'object' &&
+    json !== null &&
+    typeof (json as Record<string, unknown>).output_url === 'string'
+      ? String((json as Record<string, unknown>).output_url)
+      : null
+
+  if (!outputUrl) throw new Error('Colorization failed, please try again')
+  return outputUrl
 }
 
 function preloadImage(url: string, timeoutMs = 120_000) {
@@ -864,7 +943,10 @@ function PhotoToColoringSection() {
   const [isConverting, setIsConverting] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [lastAutoConvertedId, setLastAutoConvertedId] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false)
+  const [modelStatus, setModelStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const [progressText, setProgressText] = useState<string | null>(null)
+  const [compare, setCompare] = useState(50)
 
   useEffect(() => {
     if (!photoFile) {
@@ -896,47 +978,34 @@ function PhotoToColoringSection() {
       setError('Please choose a file first.')
       return
     }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Please choose an image under 10MB.')
+      return
+    }
 
     setError(null)
     setIsConverting(true)
-
-    const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 120_000)
+    setCompare(50)
 
     try {
-      const publicUrl = await uploadToPollinations(file, controller.signal)
-      const seed = makePollinationsSeed()
+      if (modelStatus !== 'ready') {
+        setModelStatus('loading')
+        setProgressText('Loading AI model...')
+        await getLineArtSession()
+        setModelStatus('ready')
+      }
 
-      const bwPrompt =
-        'Convert this photo into a clean black and white coloring page with bold outlines, no shading, no colors, suitable for kids to color in'
-
-      const bwUrl = buildPollinationsImageUrl(bwPrompt, {
-        image: publicUrl,
-        model: 'kontext',
-        nologo: true,
-        width: 1024,
-        height: 1024,
-        seed,
-      })
-
-      setResultUrl(bwUrl)
-      await preloadImageWithRetry(bwUrl, 120_000, 1)
+      setProgressText('Converting your photo...')
+      const dataUrl = await convertFileToLineArtDataUrl(file)
+      setResultUrl(dataUrl)
     } catch (err) {
+      setModelStatus((prev) => (prev === 'loading' ? 'error' : prev))
       setError(err instanceof Error ? err.message : 'Conversion failed')
     } finally {
-      window.clearTimeout(timeout)
+      setProgressText(null)
       setIsConverting(false)
     }
-  }, [photoFile]);
-
-  useEffect(() => {
-    if (!photoFile) return;
-    if (isConverting) return;
-    const id = `${photoFile.name}:${photoFile.size}:${photoFile.lastModified}`;
-    if (id === lastAutoConvertedId) return;
-    setLastAutoConvertedId(id);
-    void handleConvert(photoFile);
-  }, [photoFile, isConverting, lastAutoConvertedId, handleConvert]);
+  }, [photoFile, modelStatus]);
 
   return (
     <section id="photo-feature" className="py-20 bg-white">
@@ -974,11 +1043,45 @@ function PhotoToColoringSection() {
             </div>
 
             <div className="space-y-3">
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
-              />
+              <div
+                className={`rounded-2xl border-2 border-dashed p-6 text-center transition-colors ${
+                  isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white'
+                }`}
+                onDragEnter={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setIsDragging(true)
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setIsDragging(true)
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setIsDragging(false)
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setIsDragging(false)
+                  const file = e.dataTransfer.files?.[0] ?? null
+                  setPhotoFile(file)
+                }}
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <Upload className="w-6 h-6 text-indigo-600" />
+                  <div className="text-sm text-gray-700">Drag & drop or click to upload</div>
+                  <div className="text-xs text-gray-500">JPG, PNG, WEBP up to 10MB</div>
+                </div>
+                <Input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="mt-4"
+                  onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+                />
+              </div>
 
               <Button
                 onClick={() => handleConvert()}
@@ -986,13 +1089,74 @@ function PhotoToColoringSection() {
                 className="bg-gradient-to-r from-indigo-600 to-emerald-500 hover:from-indigo-700 hover:to-emerald-600 text-white px-8 py-6 text-lg rounded-xl"
               >
                 <Upload className="w-5 h-5 mr-2" />
-                {isConverting ? 'Generating...' : 'Generate Results'}
+                {isConverting ? 'Converting...' : 'Convert to Coloring Page'}
               </Button>
 
+              {isConverting && (
+                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="w-5 h-5 text-indigo-600 animate-spin" />
+                    <div className="text-sm text-gray-600">{progressText ?? 'Working...'}</div>
+                  </div>
+                  <div className="mt-3 h-2 rounded-full bg-gray-100 overflow-hidden">
+                    <div className="h-full w-2/3 bg-gradient-to-r from-indigo-600 to-emerald-500 animate-pulse" />
+                  </div>
+                </div>
+              )}
+
               {resultUrl && (
-                <Button variant="outline" className="w-full" onClick={() => openOnlineColoring(resultUrl)}>
-                  Color This Online
-                </Button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Button variant="outline" className="w-full" onClick={() => openOnlineColoring(resultUrl)}>
+                    Color This Online
+                  </Button>
+                  <Button
+                    className="w-full bg-gray-900 text-white hover:bg-gray-800"
+                    onClick={() => {
+                      const a = document.createElement('a')
+                      a.href = resultUrl
+                      a.download = 'inkbloom-coloring-page.png'
+                      a.click()
+                    }}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download PNG
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+                      const pageWidth = doc.internal.pageSize.getWidth()
+                      const pageHeight = doc.internal.pageSize.getHeight()
+                      const margin = 36
+                      const maxW = pageWidth - margin * 2
+                      const maxH = pageHeight - margin * 2
+                      const size = Math.min(maxW, maxH)
+                      const x = (pageWidth - size) / 2
+                      const y = (pageHeight - size) / 2
+                      doc.addImage(resultUrl, 'PNG', x, y, size, size)
+                      doc.save('inkbloom-coloring-page.pdf')
+                    }}
+                  >
+                    Download PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      const w = window.open('', '_blank', 'noopener,noreferrer')
+                      if (!w) return
+                      w.document.write(
+                        `<html><head><title>Print</title><style>body{margin:0}img{width:100%;height:auto;display:block}</style></head><body><img src="${resultUrl}"/></body></html>`
+                      )
+                      w.document.close()
+                      w.focus()
+                      w.print()
+                    }}
+                  >
+                    Print
+                  </Button>
+                </div>
               )}
 
               {error && <div className="text-sm text-red-600">{error}</div>}
@@ -1002,27 +1166,40 @@ function PhotoToColoringSection() {
           <div className="order-1 lg:order-2">
             <div className="relative">
               {photoPreviewUrl && resultUrl ? (
-                <div className="grid gap-4 grid-cols-2">
-                  <div className="bg-white rounded-2xl shadow-lg p-3">
-                    <img
-                      src={photoPreviewUrl}
-                      alt="Original"
-                      className="rounded-xl w-full h-64 object-cover"
-                    />
-                    <p className="text-center text-sm text-gray-500 mt-2">Original Photo</p>
-                  </div>
-                  {resultUrl && (
-                    <div className="bg-white rounded-2xl shadow-lg p-3">
+                <div className="bg-white rounded-3xl shadow-2xl p-6">
+                  <div className="relative rounded-2xl overflow-hidden bg-gray-50">
+                    <div className="relative w-full h-[420px]">
                       <img
                         src={resultUrl}
-                        alt="Generated coloring page"
-                        crossOrigin="anonymous"
-                        onError={() => setError('Generation failed, please try again')}
-                        className="rounded-xl w-full h-64 object-contain bg-gray-50"
+                        alt="After"
+                        onError={() => setError('Conversion failed, please try again')}
+                        className="absolute inset-0 w-full h-full object-contain"
                       />
-                      <p className="text-center text-sm text-gray-500 mt-2">Coloring Page</p>
+                      <img
+                        src={photoPreviewUrl}
+                        alt="Before"
+                        className="absolute inset-0 w-full h-full object-contain"
+                        style={{ clipPath: `inset(0 ${100 - compare}% 0 0)` }}
+                      />
+                      <div className="absolute inset-y-0" style={{ left: `${compare}%` }}>
+                        <div className="w-0.5 h-full bg-gray-900/60" />
+                      </div>
                     </div>
-                  )}
+                  </div>
+                  <div className="mt-4">
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={compare}
+                      onChange={(e) => setCompare(Number(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-2">
+                      <span>Original</span>
+                      <span>Coloring Page</span>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4">
@@ -1691,6 +1868,24 @@ function ImageEditorSection() {
       if (!imageUrl) throw new Error('Missing image url')
 
       setProgressText('Generating result...')
+      if (mode === 'colorize') {
+        const deepAiUrl = await colorizeWithDeepAI(imageUrl, controller.signal)
+        setResultUrl(deepAiUrl)
+        await preloadImageWithRetry(deepAiUrl, 120_000, 1)
+
+        const item: HistoryItem = {
+          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          createdAt: Date.now(),
+          mode,
+          model: effectiveModel,
+          seed: effectiveSeed,
+          uploadedUrl: imageUrl,
+          prompt: 'DeepAI colorizer',
+          label: 'Colorize (DeepAI)',
+        }
+        setHistory((prev) => [item, ...prev].slice(0, 10))
+        return
+      }
       const outUrl = buildPollinationsImageUrl(promptText, {
         image: imageUrl,
         model: effectiveModel,
@@ -2025,9 +2220,10 @@ function ColorizeSection() {
   const [isColorizing, setIsColorizing] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [colorStyle, setColorStyle] = useState<'Natural' | 'Vintage' | 'Vibrant' | 'Warm' | 'Cool'>('Natural')
+  const [colorStyle, setColorStyle] = useState<'Natural' | 'Vintage' | 'Vibrant'>('Natural')
   const [compare, setCompare] = useState(50)
   const [slowNotice, setSlowNotice] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (!drawingFile) {
@@ -2054,20 +2250,35 @@ function ColorizeSection() {
   }, [resultUrl]);
 
   const handleFileSelect = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setError('Please upload an image file.')
+    const allowed = new Set(['image/png', 'image/jpeg', 'image/webp'])
+    if (!allowed.has(file.type)) {
+      setError('Please upload a PNG, JPG, or WEBP image.')
       return
     }
     if (file.size > 10 * 1024 * 1024) {
-      setError('File too large. Max 10MB.')
+      setError('File is too large. Please upload an image under 10MB.')
       return
     }
     setError(null)
     setDrawingFile(file)
+    setCompare(50)
     setResultUrl((prev) => {
       if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
       return null
     })
+  }
+
+  const reset = () => {
+    setError(null)
+    setSlowNotice(false)
+    setCompare(50)
+    setCopied(false)
+    setDrawingFile(null)
+    setResultUrl((prev) => {
+      if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+      return null
+    })
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const handleColorize = async () => {
@@ -2085,31 +2296,53 @@ function ColorizeSection() {
         Natural: 'Colorize with highly realistic natural colors',
         Vintage: 'Colorize with warm vintage 1970s Kodak film tones',
         Vibrant: 'Colorize with vivid saturated bright colors',
-        Warm: 'Colorize with warm golden sunset tones',
-        Cool: 'Colorize with cool blue cinematic colors',
       }
-      const prompt = stylePromptMap[colorStyle]
-      const seed = makePollinationsSeed()
-      const imageUrl = await uploadToPollinations(drawingFile)
-      const url = buildPollinationsImageUrl(prompt, {
-        image: imageUrl,
-        model: 'kontext',
-        nologo: true,
-        width: 1024,
-        height: 1024,
-        seed,
-      })
-      setResultUrl(url)
+      const controller = new AbortController()
+      const timeout = window.setTimeout(() => controller.abort(), 120_000)
       const slowTimer = window.setTimeout(() => setSlowNotice(true), 30_000)
       try {
-        await preloadImageWithRetry(url, 120_000, 1)
+        const deepAiUrl = await colorizeWithDeepAI(drawingFile, controller.signal)
+        const finalUrl =
+          colorStyle === 'Natural'
+            ? deepAiUrl
+            : buildPollinationsImageUrl(stylePromptMap[colorStyle], {
+                image: deepAiUrl,
+                model: 'kontext',
+                nologo: true,
+                width: 1024,
+                height: 1024,
+                seed: makePollinationsSeed(),
+              })
+        setResultUrl(finalUrl)
+        await preloadImageWithRetry(finalUrl, 120_000, 1)
       } finally {
         window.clearTimeout(slowTimer)
+        window.clearTimeout(timeout)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Colorization failed')
     } finally {
       setIsColorizing(false)
+    }
+  }
+
+  const handleShare = async () => {
+    if (!resultUrl) return
+    setCopied(false)
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'InkBloom', url: resultUrl })
+        return
+      }
+    } catch {
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(resultUrl)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopied(false)
     }
   }
 
@@ -2138,19 +2371,19 @@ function ColorizeSection() {
             <div>
               <Badge className="bg-indigo-100 text-indigo-700 mb-4">AI Colorization</Badge>
               <h2 className="text-3xl lg:text-5xl font-bold text-gray-900 mb-4">
-                Bring Old Photos <span className="text-gradient">Back to Life</span> with AI
+                Upload your coloring page to <span className="text-gradient">colorize it</span>
               </h2>
               <p className="text-lg text-gray-600 leading-relaxed">
-                Upload a black & white photo, pick a color style, and get a beautiful colorized result while preserving detail and lighting.
+                Upload black and white line art and let AI color it automatically. No signup required.
               </p>
             </div>
             
             <div className="grid sm:grid-cols-2 gap-4">
               {[
-                { icon: Palette, title: 'Custom Colors', desc: 'Specify exact colors for elements' },
-                { icon: Zap, title: 'Instant Results', desc: 'See colors applied in seconds' },
-                { icon: Download, title: 'High Quality', desc: 'Download in full resolution' },
-                { icon: Share2, title: 'Easy Sharing', desc: 'Share directly to social media' },
+                { icon: Zap, title: 'Instant Results', desc: 'AI colors your page in seconds' },
+                { icon: Download, title: 'High Quality', desc: 'Download the full-resolution image' },
+                { icon: Shield, title: 'Free to Use', desc: 'Works from your browser' },
+                { icon: Users, title: 'No Sign-up', desc: 'Upload and colorize right away' },
               ].map((item, index) => (
                 <div key={index} className="flex items-start gap-3">
                   <item.icon className="w-5 h-5 text-indigo-600 mt-0.5" />
@@ -2163,99 +2396,112 @@ function ColorizeSection() {
             </div>
 
             <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {(['Natural', 'Vintage', 'Vibrant', 'Warm', 'Cool'] as const).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setColorStyle(s)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                      colorStyle === s
-                        ? 'bg-gradient-to-r from-indigo-600 to-emerald-500 text-white'
-                        : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) handleFileSelect(file)
-                }}
-              />
-              <div
-                role="button"
-                tabIndex={0}
-                className={`rounded-xl border-2 border-dashed p-6 bg-white transition-colors ${isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300'}`}
-                onClick={() => fileInputRef.current?.click()}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click()
-                }}
-                onDragEnter={(e) => {
-                  e.preventDefault()
-                  setIsDragging(true)
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  setIsDragging(true)
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault()
-                  setIsDragging(false)
-                }}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  setIsDragging(false)
-                  const file = e.dataTransfer.files?.[0]
-                  if (file) handleFileSelect(file)
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <Upload className="w-5 h-5 text-indigo-600" />
-                  <div className="flex-1">
-                    <div className="font-medium text-gray-900">
-                      {drawingFile ? drawingFile.name : 'Choose a file or drag and drop'}
-                    </div>
-                    <div className="text-sm text-gray-500">PNG, JPG, WEBP up to 10MB</div>
+              {!isColorizing && (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {(['Natural', 'Vintage', 'Vibrant'] as const).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setColorStyle(s)}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                          colorStyle === s
+                            ? 'bg-gradient-to-r from-indigo-600 to-emerald-500 text-white'
+                            : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
                   </div>
-                  {drawingFile && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setDrawingFile(null)
-                        setResultUrl((prev) => {
-                          if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
-                          return null
-                        })
-                      }}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) handleFileSelect(file)
+                    }}
+                  />
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className={`rounded-xl border-2 border-dashed p-6 bg-white transition-colors ${isDragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300'}`}
+                    onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click()
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault()
+                      setIsDragging(true)
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      setIsDragging(true)
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault()
+                      setIsDragging(false)
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      setIsDragging(false)
+                      const file = e.dataTransfer.files?.[0]
+                      if (file) handleFileSelect(file)
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Upload className="w-5 h-5 text-indigo-600" />
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">
+                          {drawingFile ? drawingFile.name : 'Upload your coloring page to colorize it'}
+                        </div>
+                        <div className="text-sm text-gray-500">Supports PNG, JPG, WEBP up to 10MB</div>
+                      </div>
+                      {drawingFile && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            reset()
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleColorize}
+                    disabled={!drawingFile}
+                    className="bg-gradient-to-r from-emerald-500 to-indigo-600 hover:from-emerald-600 hover:to-indigo-700 text-white px-8 py-6 text-lg rounded-xl"
+                  >
+                    <Paintbrush className="w-5 h-5 mr-2" />
+                    Colorize
+                  </Button>
+                </>
+              )}
+              {isColorizing ? (
+                <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
+                    <div className="text-sm text-gray-700">AI is coloring your page... (5-15 seconds)</div>
+                  </div>
+                  <div className="mt-3 h-2 rounded-full bg-gray-100 overflow-hidden">
+                    <div className="h-full w-2/3 bg-gradient-to-r from-emerald-500 to-indigo-600 animate-pulse" />
+                  </div>
+                  {slowNotice && <div className="mt-3 text-sm text-gray-500">This is taking longer than usual...</div>}
                 </div>
-              </div>
-              <Button
-                onClick={handleColorize}
-                disabled={isColorizing || !drawingFile}
-                className="bg-gradient-to-r from-indigo-600 to-emerald-500 hover:from-indigo-700 hover:to-emerald-600 text-white px-8 py-6 text-lg rounded-xl"
-              >
-                <Paintbrush className="w-5 h-5 mr-2" />
-                {isColorizing ? 'Colorizing...' : 'Colorize Image'}
-              </Button>
-              {isColorizing && (
-                <div className="text-sm text-gray-500">
-                  Generating... (10-30 seconds)
-                  {slowNotice && <div className="mt-1">This is taking longer than usual...</div>}
+              ) : null}
+              {error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 flex items-center justify-between gap-3">
+                  <div className="text-sm">{error}</div>
+                  <Button variant="outline" onClick={handleColorize} disabled={!drawingFile || isColorizing}>
+                    Retry
+                  </Button>
                 </div>
               )}
-              {error && <div className="text-sm text-red-600">{error}</div>}
             </div>
           </div>
           
@@ -2299,10 +2545,19 @@ function ColorizeSection() {
                           onChange={(e) => setCompare(Number(e.target.value))}
                           className="w-full"
                         />
-                        <Button className="w-full bg-gray-900 text-white hover:bg-gray-800" onClick={handleDownload}>
-                          <Download className="w-4 h-4 mr-2" />
-                          Download
-                        </Button>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <Button className="w-full bg-gray-900 text-white hover:bg-gray-800" onClick={handleDownload}>
+                            <Download className="w-4 h-4 mr-2" />
+                            Download
+                          </Button>
+                          <Button variant="outline" className="w-full" onClick={reset}>
+                            Try Another
+                          </Button>
+                          <Button variant="outline" className="w-full" onClick={handleShare}>
+                            <Share2 className="w-4 h-4 mr-2" />
+                            {copied ? 'Copied' : 'Share'}
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
