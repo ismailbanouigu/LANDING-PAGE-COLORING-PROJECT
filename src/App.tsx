@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
+import { Link, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { 
   ChevronDown, Sparkles, Check, Search, Star, Menu, X,
   Palette, Zap, CreditCard, Users, Image as ImageIcon,
@@ -127,6 +128,8 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -137,34 +140,34 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
   const navItems = [
     {
       label: 'Free Coloring Pages',
-      href: '#gallery',
+      href: '/coloring-pages/all',
       dropdown: [
-        { label: 'Animals', href: '#', icon: '🐾' },
-        { label: 'Cartoons', href: '#', icon: '🎨' },
-        { label: 'Holidays', href: '#', icon: '🎄' },
-        { label: 'Fantasy', href: '#', icon: '🦄' },
-        { label: 'Nature', href: '#', icon: '🌸' },
-        { label: 'View All', href: '#gallery', icon: '→' },
+        { label: 'Animals', href: '/coloring-pages/animals', icon: '🐾' },
+        { label: 'Cartoons', href: '/coloring-pages/cartoons', icon: '🎨' },
+        { label: 'Holidays', href: '/coloring-pages/holidays', icon: '🎄' },
+        { label: 'Fantasy', href: '/coloring-pages/fantasy', icon: '🦄' },
+        { label: 'Nature', href: '/coloring-pages/nature', icon: '🌸' },
+        { label: 'View All', href: '/coloring-pages/all', icon: '→' },
       ]
     },
     {
       label: 'AI Generators',
-      href: '#',
+      href: '/generators',
       dropdown: [
-        { label: 'Photo to Coloring Page', href: '#photo-feature', icon: '📸' },
-        { label: 'Text to Coloring Page', href: '#text-feature', icon: '✏️' },
-        { label: 'Coloring Book Generator', href: '#book-feature', icon: '📚' },
-        { label: 'AI Image Editor', href: '#edit-feature', icon: '🪄' },
-        { label: 'Colorize Drawing', href: '#colorize-feature', icon: '🎨' },
+        { label: 'Photo to Coloring Page', href: '/generators/photo-to-coloring', icon: '📸' },
+        { label: 'Text to Coloring Page', href: '/generators/text-to-coloring', icon: '✏️' },
+        { label: 'Coloring Book Generator', href: '/generators/coloring-book', icon: '📚' },
+        { label: 'AI Image Editor', href: '/generators/image-editor', icon: '🪄' },
+        { label: 'Colorize Drawing', href: '/generators/colorize', icon: '🎨' },
       ]
     },
     {
       label: 'Coloring Book Generator',
-      href: '#book-feature',
+      href: '/generators/coloring-book',
       badge: 'New',
     },
-    { label: 'Online Coloring', href: '#online-coloring' },
-    { label: 'Gallery', href: '#gallery' },
+    { label: 'Online Coloring', href: '/online-coloring' },
+    { label: 'Gallery', href: '/coloring-pages/all' },
   ];
 
   return (
@@ -172,7 +175,7 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
-          <a href="#" className="flex items-center gap-2 group">
+          <Link to="/" className="flex items-center gap-2 group">
             <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
               <img src={inkbloomLogo} alt="InkBloom" className="w-6 h-6 lg:w-7 lg:h-7" />
             </div>
@@ -183,7 +186,7 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
               </span>
               <span className="text-xs text-gray-400 hidden sm:block">AI Coloring Studio</span>
             </div>
-          </a>
+          </Link>
 
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center gap-1">
@@ -194,30 +197,33 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
                 onMouseEnter={() => item.dropdown && setActiveDropdown(item.label)}
                 onMouseLeave={() => setActiveDropdown(null)}
               >
-                <a 
-                  href={item.href}
-                  className="flex items-center gap-1 px-4 py-2 text-gray-700 hover:text-indigo-600 font-medium rounded-lg hover:bg-indigo-50 transition-colors"
+                <Link
+                  to={item.href}
+                  className={`flex items-center gap-1 px-4 py-2 font-medium rounded-lg transition-colors ${
+                    location.pathname === item.href ? 'text-indigo-600 bg-indigo-50' : 'text-gray-700 hover:text-indigo-600 hover:bg-indigo-50'
+                  }`}
                 >
                   {item.label}
                   {item.badge && (
                     <Badge className="ml-1 bg-gradient-to-r from-indigo-600 to-emerald-500 text-white text-xs">{item.badge}</Badge>
                   )}
                   {item.dropdown && <ChevronDown className="w-4 h-4" />}
-                </a>
+                </Link>
                 
                 {/* Dropdown Menu */}
                 {item.dropdown && activeDropdown === item.label && (
                   <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-2">
                     <div className="p-2">
                       {item.dropdown.map((subItem, subIndex) => (
-                        <a
+                        <Link
                           key={subIndex}
-                          href={subItem.href}
+                          to={subItem.href}
                           className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-indigo-50 text-gray-700 hover:text-indigo-600 transition-colors"
+                          onClick={() => setActiveDropdown(null)}
                         >
                           <span className="text-xl">{subItem.icon}</span>
                           <span className="font-medium">{subItem.label}</span>
-                        </a>
+                        </Link>
                       ))}
                     </div>
                   </div>
@@ -258,7 +264,7 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
               </Button>
             )}
             <Button
-              onClick={() => scrollToSection('text-feature')}
+              onClick={() => navigate('/generators/text-to-coloring')}
               className="bg-gradient-to-r from-indigo-600 to-emerald-500 hover:from-indigo-700 hover:to-emerald-600 text-white px-6"
             >
               <Sparkles className="w-4 h-4 mr-2" />
@@ -283,26 +289,26 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
             <div className="p-4 space-y-2">
               {navItems.map((item, index) => (
                 <div key={index}>
-                  <a 
-                    href={item.href}
+                  <Link
+                    to={item.href}
                     className="flex items-center justify-between p-3 text-gray-700 font-medium rounded-lg hover:bg-indigo-50"
                     onClick={() => !item.dropdown && setMobileMenuOpen(false)}
                   >
                     <span>{item.label}</span>
                     {item.badge && <Badge className="bg-indigo-600 text-white">{item.badge}</Badge>}
-                  </a>
+                  </Link>
                   {item.dropdown && (
                     <div className="ml-4 space-y-1">
                       {item.dropdown.map((subItem, subIndex) => (
-                        <a
+                        <Link
                           key={subIndex}
-                          href={subItem.href}
+                          to={subItem.href}
                           className="flex items-center gap-2 p-3 text-gray-600 rounded-lg hover:bg-gray-50"
                           onClick={() => setMobileMenuOpen(false)}
                         >
                           <span>{subItem.icon}</span>
                           <span>{subItem.label}</span>
-                        </a>
+                        </Link>
                       ))}
                     </div>
                   )}
@@ -312,7 +318,7 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
               <Button
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  scrollToSection('text-feature');
+                  navigate('/generators/text-to-coloring');
                 }}
                 className="w-full bg-gradient-to-r from-indigo-600 to-emerald-500 text-white"
               >
@@ -330,6 +336,9 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
 // ==================== HERO SECTION ====================
 function HeroSection() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [demoOpen, setDemoOpen] = useState(false)
+  const navigate = useNavigate()
+  const location = useLocation()
   
   const slides = [
     {
@@ -355,6 +364,14 @@ function HeroSection() {
     }, 5000);
     return () => clearInterval(timer);
   }, [slides.length]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('demo') === '1') {
+      const id = window.setTimeout(() => setDemoOpen(true), 0)
+      return () => window.clearTimeout(id)
+    }
+  }, [location.search])
 
   return (
     <section className="relative min-h-[90vh] flex items-center overflow-hidden">
@@ -392,11 +409,7 @@ function HeroSection() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <Button
                 onClick={() => {
-                  scrollToSection('text-feature');
-                  window.setTimeout(() => {
-                    const input = document.getElementById('text-generator-prompt');
-                    if (input instanceof HTMLInputElement) input.focus();
-                  }, 250);
+                  navigate('/generators/text-to-coloring')
                 }}
                 className="bg-gradient-to-r from-indigo-600 to-emerald-500 hover:from-indigo-700 hover:to-emerald-600 text-white px-8 py-6 text-lg rounded-xl shadow-lg shadow-indigo-600/20 hover:shadow-xl hover:shadow-indigo-600/25 transition-all"
               >
@@ -404,7 +417,7 @@ function HeroSection() {
                 Start Creating Free
               </Button>
               <Button
-                onClick={() => scrollToSection('photo-feature')}
+                onClick={() => setDemoOpen(true)}
                 variant="outline"
                 className="px-8 py-6 text-lg rounded-xl border-2 hover:bg-indigo-50"
               >
@@ -492,6 +505,48 @@ function HeroSection() {
           </div>
         </div>
       </div>
+      <Dialog open={demoOpen} onOpenChange={setDemoOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>How InkBloom Works</DialogTitle>
+          </DialogHeader>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="rounded-2xl border border-gray-200 p-5 bg-white">
+              <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center mb-4">
+                <Upload className="w-6 h-6 text-indigo-600" />
+              </div>
+              <div className="font-semibold text-gray-900 mb-1">1) Upload</div>
+              <div className="text-sm text-gray-600">Choose a photo or write a prompt for your coloring page.</div>
+            </div>
+            <div className="rounded-2xl border border-gray-200 p-5 bg-white">
+              <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center mb-4">
+                <Wand2 className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div className="font-semibold text-gray-900 mb-1">2) AI Converts</div>
+              <div className="text-sm text-gray-600">AI turns it into clean black & white outlines.</div>
+            </div>
+            <div className="rounded-2xl border border-gray-200 p-5 bg-white">
+              <div className="w-12 h-12 rounded-xl bg-fuchsia-100 flex items-center justify-center mb-4">
+                <Download className="w-6 h-6 text-fuchsia-600" />
+              </div>
+              <div className="font-semibold text-gray-900 mb-1">3) Download</div>
+              <div className="text-sm text-gray-600">Download PNG and print or color online.</div>
+            </div>
+          </div>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDemoOpen(false)}>Close</Button>
+            <Button
+              className="bg-gradient-to-r from-indigo-600 to-emerald-500 text-white"
+              onClick={() => {
+                setDemoOpen(false)
+                navigate('/generators/photo-to-coloring')
+              }}
+            >
+              Try It Now
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
@@ -897,6 +952,8 @@ function TextToColoringSection() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [slowNotice, setSlowNotice] = useState(false)
+  const [showImage, setShowImage] = useState(false)
 
   const examples = [
     { prompt: 'A cute mermaid doing yoga underwater', image: '/mermaid-yoga.jpg' },
@@ -916,9 +973,11 @@ function TextToColoringSection() {
 
     setGenerateError(null);
     setIsGenerating(true);
+    setSlowNotice(false)
+    setShowImage(false)
 
     try {
-      const coloringPrompt = `Coloring book page line art. Black and white. Clean bold outlines. No shading. No gray. White background. Centered subject. ${effectivePrompt}`
+      const coloringPrompt = `${effectivePrompt}, black and white coloring page, clean bold outlines, no shading, no colors, suitable for coloring book, high detail line art`
       const seed = makePollinationsSeed()
       const url = buildPollinationsImageUrl(coloringPrompt, {
         model: 'flux',
@@ -927,8 +986,14 @@ function TextToColoringSection() {
         width: 1024,
         height: 1024,
       })
+      const slowTimer = window.setTimeout(() => setSlowNotice(true), 30_000)
+      try {
+        await preloadImage(url, 60_000)
+      } finally {
+        window.clearTimeout(slowTimer)
+      }
       setGeneratedImageUrl(url)
-      await preloadImage(url)
+      window.requestAnimationFrame(() => setShowImage(true))
     } catch (err) {
       setGenerateError(err instanceof Error ? err.message : 'Generation failed');
     } finally {
@@ -977,10 +1042,21 @@ function TextToColoringSection() {
           <p className="text-center text-sm text-gray-500 mt-4">
             Try: "A cute astronaut cat on the moon" or "A magical fairy garden"
           </p>
+          {isGenerating && (
+            <div className="mt-3 text-center text-sm text-gray-500">
+              Generating your coloring page... (10-30 seconds)
+              {slowNotice && <div className="mt-1">This is taking longer than usual...</div>}
+            </div>
+          )}
 
           {generateError && (
             <div className="mt-4 text-center text-sm text-red-600">
               {generateError}
+              <div className="mt-3 flex justify-center">
+                <Button variant="outline" onClick={handleGenerate} disabled={isGenerating}>
+                  Retry
+                </Button>
+              </div>
             </div>
           )}
 
@@ -991,16 +1067,37 @@ function TextToColoringSection() {
                 alt="Generated preview"
                 crossOrigin="anonymous"
                 onError={() => setGenerateError('Generation failed, please try again')}
-                className="rounded-xl w-full max-h-[520px] object-contain bg-gray-50"
+                className={`rounded-xl w-full max-h-[520px] object-contain bg-gray-50 transition-opacity duration-500 ${showImage ? 'opacity-100' : 'opacity-0'}`}
               />
               <div className="mt-3">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => openOnlineColoring(generatedImageUrl)}
-                >
-                  Color This Online
-                </Button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => openOnlineColoring(generatedImageUrl)}
+                  >
+                    Color This Online
+                  </Button>
+                  <Button
+                    className="w-full bg-gray-900 text-white hover:bg-gray-800"
+                    onClick={() => {
+                      fetch(generatedImageUrl)
+                        .then((res) => res.blob())
+                        .then((blob) => {
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = 'coloring-page.png'
+                          a.click()
+                          window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
+                        })
+                        .catch(() => window.open(generatedImageUrl, '_blank', 'noopener,noreferrer'))
+                    }}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -1047,6 +1144,11 @@ function ColoringBookSection() {
     const t = (theme || 'A magical forest adventure').trim();
     const c = (character || 'A cute explorer bunny').trim();
     if (!t || !c) return;
+    if (!auth.currentUser) {
+      setError('Please sign in to continue')
+      window.dispatchEvent(new Event('auth:required'))
+      return
+    }
 
     setError(null);
     setIsGenerating(true);
@@ -1402,6 +1504,11 @@ function ImageEditorSection() {
   }
 
   const runEdit = async (override?: Partial<Pick<HistoryItem, 'uploadedUrl' | 'seed' | 'model' | 'prompt' | 'label'>>) => {
+    if (!auth.currentUser) {
+      setError('Please sign in to continue')
+      window.dispatchEvent(new Event('auth:required'))
+      return
+    }
     if (!file && !override?.uploadedUrl) {
       setError('Please upload an image first.')
       return
@@ -2016,8 +2123,8 @@ function ColorizeSection() {
 }
 
 // ==================== GALLERY SECTION ====================
-function GallerySection() {
-  const [activeFilter, setActiveFilter] = useState('all');
+function GallerySection({ initialFilter }: { initialFilter?: string }) {
+  const [activeFilter, setActiveFilter] = useState(initialFilter ?? 'all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const filters = [
@@ -2217,6 +2324,7 @@ function OnlineColoringSection() {
   const [activeTool, setActiveTool] = useState<(typeof tools)[number]['name']>('Brush');
   const [activeColor, setActiveColor] = useState(colors[0]);
   const [brushSize, setBrushSize] = useState(10);
+  const [zoom, setZoom] = useState(1)
   const [status, setStatus] = useState<string | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
@@ -2635,6 +2743,15 @@ function OnlineColoringSection() {
                     />
                   ))}
                 </div>
+                <div className="mt-3 flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={activeColor}
+                    onChange={(e) => setActiveColor(e.target.value)}
+                    className="h-10 w-12 rounded-lg bg-gray-700 border border-gray-600"
+                  />
+                  <div className="text-xs text-gray-400">Custom color</div>
+                </div>
               </div>
               
               <div>
@@ -2649,14 +2766,45 @@ function OnlineColoringSection() {
                 />
                 <div className="text-xs text-gray-400 mt-1">{brushSize}px</div>
               </div>
+
+              <div>
+                <h4 className="text-sm font-medium text-gray-400 mb-3">Zoom</h4>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                    onClick={() => setZoom((z) => Math.max(0.5, Math.round((z - 0.1) * 10) / 10))}
+                  >
+                    -
+                  </Button>
+                  <div className="text-sm text-gray-300 w-16 text-center">{Math.round(zoom * 100)}%</div>
+                  <Button
+                    variant="outline"
+                    className="border-gray-600 text-gray-300 hover:bg-gray-700"
+                    onClick={() => setZoom((z) => Math.min(3, Math.round((z + 0.1) * 10) / 10))}
+                  >
+                    +
+                  </Button>
+                </div>
+                <input
+                  type="range"
+                  className="w-full mt-2"
+                  min="0.5"
+                  max="3"
+                  step="0.1"
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                />
+              </div>
             </div>
             
             {/* Canvas Area */}
             <div className="lg:col-span-3">
-              <div className="bg-white rounded-2xl overflow-hidden relative">
-                <canvas ref={baseCanvasRef} className="w-full h-auto max-h-[600px] object-contain block" />
+              <div className="bg-white rounded-2xl overflow-auto relative">
+                <canvas ref={baseCanvasRef} style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }} className="w-full h-auto max-h-[600px] object-contain block" />
                 <canvas
                   ref={drawCanvasRef}
+                  style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
                   className="absolute inset-0 w-full h-auto max-h-[600px] object-contain touch-none"
                   onPointerDown={(e) => {
                     const canvas = drawCanvasRef.current;
@@ -3050,27 +3198,47 @@ function FAQSection() {
     {
       category: 'getting-started',
       question: 'Is it free to use?',
-      answer: 'Yes! We offer a generous free plan that lets you create up to 10 coloring pages per month. For unlimited access and advanced features like the Coloring Book Generator, we offer affordable premium plans starting at just $6.99/month.'
+      answer: 'Yes. You can start for free and generate coloring pages without a credit card. Availability and limits may change as we improve the service.'
     },
     {
       category: 'creating',
-      question: 'How does the Photo to Coloring Page feature work?',
-      answer: 'Simply upload any photo - it could be a pet, family member, favorite object, or scene. Our AI analyzes the image and converts it into a clean, print-ready line drawing perfect for coloring. You can adjust settings like line thickness and detail level.'
+      question: 'Can I sell the coloring pages I create?',
+      answer: 'In most cases, yes. Make sure your prompts and uploaded images do not infringe on third-party rights (e.g., copyrighted characters, logos, or trademarks). You are responsible for compliance.'
     },
     {
       category: 'creating',
-      question: 'Can I create coloring books for commercial use?',
-      answer: 'Absolutely! All our paid plans include commercial licenses. You can create and sell coloring books on Amazon KDP, Etsy, or any other platform. Our Professional and Business plans even include the KDP Builder feature for optimized book creation.'
+      question: 'Can I upload my own photos?',
+      answer: 'Yes. Upload JPG, PNG, or WEBP images (up to 10MB). For best line art, use clear photos with good lighting and a simple background.'
+    },
+    {
+      category: 'creating',
+      question: 'How does the AI coloring book generator work?',
+      answer: 'You choose a theme and main character. InkBloom generates a cover and matching interior pages using consistent line-art prompts so the book feels cohesive.'
     },
     {
       category: 'downloading',
-      question: 'What file formats are available?',
-      answer: 'We provide downloads in both PDF (for printing) and PNG (for digital use) formats. All files are high-resolution and print-ready. Professional and Business plans offer up to 8K resolution.'
+      question: 'What image formats are supported?',
+      answer: 'For uploads: JPG, PNG, and WEBP. For downloads: PNG images that you can print or import into design tools.'
+    },
+    {
+      category: 'downloading',
+      question: 'How long does generation take?',
+      answer: 'Most generations take around 10–30 seconds. Sometimes it can take longer depending on demand; if it fails or times out, just retry.'
+    },
+    {
+      category: 'downloading',
+      question: 'Can I use these for Amazon KDP?',
+      answer: 'Yes, many creators use InkBloom outputs as a starting point for KDP interiors. Always review print settings, margins, and ensure the content is original and compliant with KDP policies.'
     },
     {
       category: 'account',
-      question: 'Can I cancel my subscription anytime?',
-      answer: 'Yes, you can cancel your subscription at any time with no penalties. If you cancel, you\'ll continue to have access until the end of your billing period. We also offer a 7-day free trial for all paid plans.'
+      question: 'Is there a limit on how many pages I can create?',
+      answer: 'We limit concurrency and apply rate limits to keep the service stable for everyone. If you need higher throughput, contact us.'
+    },
+    {
+      category: 'account',
+      question: 'Do you offer refunds?',
+      answer: 'If paid plans are enabled, refunds may be available depending on your plan and local law. Contact support and we’ll help you.'
     }
   ];
 
@@ -3119,6 +3287,7 @@ function FAQSection() {
 
 // ==================== CTA ====================
 function CTASection() {
+  const navigate = useNavigate()
   return (
     <section className="py-20 bg-gradient-to-r from-indigo-700 via-fuchsia-600 to-emerald-600">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -3130,11 +3299,18 @@ function CTASection() {
           No credit card required.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button className="bg-white text-indigo-700 hover:bg-gray-100 px-8 py-6 text-lg rounded-xl">
+          <Button
+            className="bg-white text-indigo-700 hover:bg-gray-100 px-8 py-6 text-lg rounded-xl"
+            onClick={() => navigate('/generators/text-to-coloring')}
+          >
             <Sparkles className="w-5 h-5 mr-2" />
             Start Creating Free
           </Button>
-          <Button variant="outline" className="border-2 border-white text-white hover:bg-white/10 px-8 py-6 text-lg rounded-xl">
+          <Button
+            variant="outline"
+            className="border-2 border-white text-white hover:bg-white/10 px-8 py-6 text-lg rounded-xl"
+            onClick={() => navigate('/?demo=1')}
+          >
             <Play className="w-5 h-5 mr-2" />
             Watch Demo
           </Button>
@@ -3160,36 +3336,36 @@ function CTASection() {
 
 // ==================== FOOTER ====================
 function Footer() {
-  const footerLinks = {
+  const footerLinks: Record<string, Array<{ label: string; to: string }>> = {
     'AI Generators': [
-      'Photo to Coloring Page',
-      'Text to Coloring Page',
-      'Coloring Book Generator',
-      'Colorize Drawing',
-      'Line Art Converter'
+      { label: 'Photo to Coloring Page', to: '/generators/photo-to-coloring' },
+      { label: 'Text to Coloring Page', to: '/generators/text-to-coloring' },
+      { label: 'Coloring Book Generator', to: '/generators/coloring-book' },
+      { label: 'AI Image Editor', to: '/generators/image-editor' },
+      { label: 'Colorize Drawing', to: '/generators/colorize' },
     ],
     'Free Coloring Pages': [
-      'Animals',
-      'Cartoons',
-      'Holidays',
-      'Fantasy',
-      'Nature',
-      'View All'
+      { label: 'Animals', to: '/coloring-pages/animals' },
+      { label: 'Cartoons', to: '/coloring-pages/cartoons' },
+      { label: 'Holidays', to: '/coloring-pages/holidays' },
+      { label: 'Fantasy', to: '/coloring-pages/fantasy' },
+      { label: 'Nature', to: '/coloring-pages/nature' },
+      { label: 'View All', to: '/coloring-pages/all' },
     ],
-    'Resources': [
-      'Blog',
-      'Tutorials',
-      'Help Center',
-      'Community',
-      'API Docs'
+    Resources: [
+      { label: 'Blog', to: '/blog' },
+      { label: 'Tutorials', to: '/tutorials' },
+      { label: 'Help Center', to: '/help' },
+      { label: 'Community', to: '/community' },
+      { label: 'API Docs', to: '/api-docs' },
     ],
-    'Company': [
-      'About Us',
-      'Careers',
-      'Contact',
-      'Press Kit',
-      'Partners'
-    ]
+    Company: [
+      { label: 'About Us', to: '/about' },
+      { label: 'Careers', to: '/careers' },
+      { label: 'Contact', to: '/contact' },
+      { label: 'Press Kit', to: '/press' },
+      { label: 'Partners', to: '/partners' },
+    ],
   };
 
   return (
@@ -3198,15 +3374,15 @@ function Footer() {
         <div className="grid md:grid-cols-2 lg:grid-cols-6 gap-12">
           {/* Brand */}
           <div className="lg:col-span-2">
-            <a href="#" className="flex items-center gap-2 mb-6">
+            <Link to="/" className="flex items-center gap-2 mb-6">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 via-fuchsia-500 to-emerald-400 flex items-center justify-center">
-                <Palette className="w-5 h-5 text-white" />
+                <img src={inkbloomLogo} alt="InkBloom" className="w-6 h-6" />
               </div>
               <span className="text-xl font-bold text-white">
                 <span className="text-indigo-300">Ink</span>
                 <span className="text-emerald-300">Bloom</span>
               </span>
-            </a>
+            </Link>
             <p className="text-gray-400 mb-6 leading-relaxed">
               AI-powered coloring page generator for creators, educators, and entrepreneurs. 
               Create unlimited designs in seconds.
@@ -3228,10 +3404,18 @@ function Footer() {
             
             {/* Social Links */}
             <div className="flex gap-3">
-              {[Facebook, Twitter, Instagram, Youtube, Linkedin].map((Icon, index) => (
+              {[
+                { Icon: Facebook, href: 'https://facebook.com' },
+                { Icon: Twitter, href: 'https://x.com' },
+                { Icon: Instagram, href: 'https://instagram.com' },
+                { Icon: Youtube, href: 'https://youtube.com' },
+                { Icon: Linkedin, href: 'https://linkedin.com' },
+              ].map(({ Icon, href }) => (
                 <a 
-                  key={index}
-                  href="#"
+                  key={href}
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
                   className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-gray-700 transition-colors"
                 >
                   <Icon className="w-5 h-5" />
@@ -3247,9 +3431,9 @@ function Footer() {
               <ul className="space-y-3">
                 {links.map((link, index) => (
                   <li key={index}>
-                    <a href="#" className="text-gray-400 hover:text-white transition-colors">
-                      {link}
-                    </a>
+                    <Link to={link.to} className="text-gray-400 hover:text-white transition-colors">
+                      {link.label}
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -3264,9 +3448,9 @@ function Footer() {
             © 2026 InkBloom. All rights reserved.
           </p>
           <div className="flex gap-6 text-sm">
-            <a href="#" className="text-gray-500 hover:text-white transition-colors">Privacy Policy</a>
-            <a href="#" className="text-gray-500 hover:text-white transition-colors">Terms of Service</a>
-            <a href="#" className="text-gray-500 hover:text-white transition-colors">Cookie Policy</a>
+            <Link to="/privacy" className="text-gray-500 hover:text-white transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="text-gray-500 hover:text-white transition-colors">Terms of Service</Link>
+            <Link to="/privacy" className="text-gray-500 hover:text-white transition-colors">Cookie Policy</Link>
           </div>
         </div>
       </div>
@@ -3274,14 +3458,432 @@ function Footer() {
   );
 }
 
+function useSeo(title: string, description: string) {
+  useEffect(() => {
+    document.title = title
+    const ensureMeta = (name: string, content: string) => {
+      let tag = document.querySelector(`meta[name="${name}"]`) as HTMLMetaElement | null
+      if (!tag) {
+        tag = document.createElement('meta')
+        tag.setAttribute('name', name)
+        document.head.appendChild(tag)
+      }
+      tag.setAttribute('content', content)
+    }
+    const ensureOg = (property: string, content: string) => {
+      let tag = document.querySelector(`meta[property="${property}"]`) as HTMLMetaElement | null
+      if (!tag) {
+        tag = document.createElement('meta')
+        tag.setAttribute('property', property)
+        document.head.appendChild(tag)
+      }
+      tag.setAttribute('content', content)
+    }
+    ensureMeta('description', description)
+    ensureOg('og:title', title)
+    ensureOg('og:description', description)
+    ensureOg('og:type', 'website')
+    ensureOg('og:url', window.location.href)
+
+    const id = 'ld-product'
+    let script = document.getElementById(id) as HTMLScriptElement | null
+    if (!script) {
+      script = document.createElement('script')
+      script.id = id
+      script.type = 'application/ld+json'
+      document.head.appendChild(script)
+    }
+    const origin = window.location.origin
+    script.text = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: 'InkBloom',
+      applicationCategory: 'DesignApplication',
+      operatingSystem: 'Web',
+      description,
+      url: `${origin}/`,
+    })
+  }, [title, description])
+}
+
+function PageShell({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+  useSeo(title, description)
+  return (
+    <main className="min-h-[70vh] bg-white">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-6">{title}</h1>
+        <div className="prose prose-gray max-w-none">{children}</div>
+      </div>
+    </main>
+  )
+}
+
+function PrivacyPage() {
+  return (
+    <PageShell
+      title="Privacy Policy"
+      description="InkBloom Privacy Policy. Learn how we collect, use, and protect your data."
+    >
+      <p>
+        InkBloom (“we”, “us”) provides an AI coloring page studio. This Privacy Policy explains what data we collect, how we use it, and your choices.
+      </p>
+      <h2>Data We Collect</h2>
+      <ul>
+        <li>Account data: email, name, and profile photo when you sign in with Google.</li>
+        <li>Usage data: pages visited, device information, and basic analytics.</li>
+        <li>Content: prompts you enter and images you upload to generate results.</li>
+      </ul>
+      <h2>How We Use Data</h2>
+      <ul>
+        <li>Provide and improve the service.</li>
+        <li>Operate security, prevent abuse, and debug issues.</li>
+        <li>Measure performance and feature usage.</li>
+      </ul>
+      <h2>Legal Bases (GDPR)</h2>
+      <ul>
+        <li>Contract: to provide the service you request.</li>
+        <li>Legitimate interests: security and product improvement.</li>
+        <li>Consent: where required for analytics/cookies.</li>
+      </ul>
+      <h2>Sharing</h2>
+      <p>
+        We may share data with service providers (hosting, analytics, authentication) only to operate InkBloom. We do not sell your personal data.
+      </p>
+      <h2>Retention</h2>
+      <p>We retain data only as long as necessary for the purposes described, unless a longer period is required by law.</p>
+      <h2>Your Rights</h2>
+      <p>
+        Depending on your location, you may have rights to access, correct, delete, or export your data, and object or restrict processing.
+      </p>
+      <h2>Contact</h2>
+      <p>For privacy requests, contact us via the Contact page.</p>
+    </PageShell>
+  )
+}
+
+function TermsPage() {
+  return (
+    <PageShell
+      title="Terms of Service"
+      description="InkBloom Terms of Service. Please read these terms before using the service."
+    >
+      <p>
+        By using InkBloom, you agree to these Terms. If you do not agree, do not use the service.
+      </p>
+      <h2>Use of the Service</h2>
+      <ul>
+        <li>You must follow applicable laws and not misuse InkBloom.</li>
+        <li>You are responsible for the content you upload or generate.</li>
+        <li>You may not attempt to disrupt or reverse engineer the service.</li>
+      </ul>
+      <h2>Content and Licensing</h2>
+      <p>
+        You retain rights to your uploaded content. Generated outputs may be used commercially by you unless prohibited by law or third-party rights.
+      </p>
+      <h2>Payments and Refunds</h2>
+      <p>Paid plans, if offered, are billed as described at checkout. Refunds may be offered at our discretion unless required by law.</p>
+      <h2>Disclaimer</h2>
+      <p>
+        The service is provided “as is” without warranties. We do not guarantee uninterrupted availability or perfect outputs.
+      </p>
+      <h2>Limitation of Liability</h2>
+      <p>To the maximum extent permitted by law, InkBloom is not liable for indirect or consequential damages.</p>
+      <h2>Changes</h2>
+      <p>We may update these Terms from time to time. Continued use means acceptance of the updated Terms.</p>
+    </PageShell>
+  )
+}
+
+function AboutPage() {
+  return (
+    <PageShell
+      title="About InkBloom"
+      description="InkBloom is an AI coloring page company founded in 2025 with a mission to democratize art."
+    >
+      <p>
+        InkBloom is an AI-powered coloring page studio founded in 2025. Our mission is to democratize art by helping anyone turn ideas, text prompts, and photos into clean, print-ready coloring pages.
+      </p>
+      <h2>Who It’s For</h2>
+      <ul>
+        <li>Creators selling printables on Etsy</li>
+        <li>Authors publishing on Amazon KDP</li>
+        <li>Teachers and parents creating fun activities</li>
+        <li>Anyone who loves coloring</li>
+      </ul>
+      <h2>What We Believe</h2>
+      <ul>
+        <li>Creativity should be accessible.</li>
+        <li>Tools should be simple and fast.</li>
+        <li>Outputs should be high quality and printable.</li>
+      </ul>
+    </PageShell>
+  )
+}
+
+function CareersPage() {
+  return (
+    <PageShell title="Careers" description="Join InkBloom. We’re hiring builders who love creativity and AI.">
+      <p>We’re hiring.</p>
+      <h2>Open Roles</h2>
+      <ul>
+        <li>Frontend Engineer (React)</li>
+        <li>Product Designer</li>
+        <li>Growth Marketer</li>
+      </ul>
+      <p>Send your portfolio and a short note via the Contact page.</p>
+    </PageShell>
+  )
+}
+
+function BlogPage() {
+  return (
+    <PageShell title="Blog" description="InkBloom blog: coloring pages, Amazon KDP tips, and creative workflows.">
+      <div className="grid gap-6">
+        {[
+          {
+            title: 'How to Make High-Quality Coloring Pages for Amazon KDP',
+            excerpt: 'A practical checklist: clean line art, margins, interior sizing, and consistency.',
+            date: '2026-03-01',
+          },
+          {
+            title: '10 Coloring Page Niches That Sell (And How to Validate Demand)',
+            excerpt: 'Find niches, test keywords, and build a product line you can expand.',
+            date: '2026-02-14',
+          },
+          {
+            title: 'From Photo to Coloring Page: Best Practices for Clean Outlines',
+            excerpt: 'How to choose photos and prompts to get crisp, printable results.',
+            date: '2026-01-28',
+          },
+          {
+            title: 'Bundles, Upsells, and Printables: Monetizing Your Coloring Page Library',
+            excerpt: 'Pricing and packaging ideas that work on Etsy and your own store.',
+            date: '2025-12-10',
+          },
+        ].map((post) => (
+          <div key={post.title} className="rounded-2xl border border-gray-200 p-6 bg-white">
+            <div className="text-xs text-gray-500">{post.date}</div>
+            <div className="text-xl font-semibold text-gray-900 mt-2">{post.title}</div>
+            <div className="text-gray-600 mt-2">{post.excerpt}</div>
+          </div>
+        ))}
+      </div>
+    </PageShell>
+  )
+}
+
+function ContactPage() {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [message, setMessage] = useState('')
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  return (
+    <PageShell title="Contact" description="Contact InkBloom. Send us a message and we’ll get back to you.">
+      <div className="max-w-xl">
+        <div className="grid gap-3 not-prose">
+          <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+          <Input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <textarea
+            className="w-full rounded-md border border-gray-200 px-3 py-2 min-h-[140px]"
+            placeholder="Message"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button
+              className="bg-gradient-to-r from-indigo-600 to-emerald-500 text-white"
+              onClick={() => {
+                setError(null)
+                if (!name.trim() || !email.trim() || !message.trim()) {
+                  setError('Please fill out all fields.')
+                  return
+                }
+                setSent(true)
+              }}
+            >
+              Send Message
+            </Button>
+            <Button variant="outline" onClick={() => window.location.assign('mailto:support@inkbloom.app')}>
+              Email Support
+            </Button>
+          </div>
+          {error && <div className="text-sm text-red-600">{error}</div>}
+          {sent && <div className="text-sm text-emerald-700">Message sent. We’ll reply soon.</div>}
+        </div>
+      </div>
+    </PageShell>
+  )
+}
+
+function TutorialsPage() {
+  return (
+    <PageShell title="Tutorials" description="InkBloom tutorials: quick guides for creating and selling coloring pages.">
+      <p>Quick guides to help you get the best results from InkBloom.</p>
+      <ul>
+        <li>How to write prompts for crisp line art</li>
+        <li>How to prepare pages for printing</li>
+        <li>How to bundle pages for Etsy and KDP</li>
+      </ul>
+    </PageShell>
+  )
+}
+
+function HelpPage() {
+  return (
+    <PageShell title="Help Center" description="InkBloom help center: troubleshooting, FAQs, and best practices.">
+      <p>If something isn’t working, try these steps:</p>
+      <ul>
+        <li>Wait 10–30 seconds after generating (some images take longer).</li>
+        <li>Retry if generation fails.</li>
+        <li>Use JPG/PNG/WEBP uploads under 10MB.</li>
+      </ul>
+      <p>If you still need help, use the Contact page.</p>
+    </PageShell>
+  )
+}
+
+function CommunityPage() {
+  return (
+    <PageShell title="Community" description="Join the InkBloom community and share coloring pages and tips.">
+      <p>Community features are coming soon.</p>
+      <p>For now, follow InkBloom on social media and share your creations.</p>
+    </PageShell>
+  )
+}
+
+function ApiDocsPage() {
+  return (
+    <PageShell title="API Docs" description="InkBloom API docs and integration notes.">
+      <p>InkBloom uses the Pollinations image endpoints directly from the browser.</p>
+      <p>If you’re building integrations, start with the official Pollinations documentation.</p>
+    </PageShell>
+  )
+}
+
+function PressPage() {
+  return (
+    <PageShell title="Press Kit" description="InkBloom press kit: product overview, screenshots, and brand assets.">
+      <p>Press kit content is coming soon.</p>
+    </PageShell>
+  )
+}
+
+function PartnersPage() {
+  return (
+    <PageShell title="Partners" description="Partner with InkBloom.">
+      <p>Interested in partnering with InkBloom? Reach out via the Contact page.</p>
+    </PageShell>
+  )
+}
+
+function GeneratorsIndexPage() {
+  return (
+    <PageShell title="AI Generators" description="Choose an InkBloom generator: photo, text, book, editor, or colorize.">
+      <div className="grid sm:grid-cols-2 gap-4 not-prose">
+        {[
+          { title: 'Photo to Coloring Page', to: '/generators/photo-to-coloring', desc: 'Upload a photo and get clean outlines.' },
+          { title: 'Text to Coloring Page', to: '/generators/text-to-coloring', desc: 'Type a prompt and generate line art.' },
+          { title: 'Coloring Book Generator', to: '/generators/coloring-book', desc: 'Generate a themed cover and pages.' },
+          { title: 'AI Image Editor', to: '/generators/image-editor', desc: 'Edit images: enhance, style, background.' },
+          { title: 'Colorize Drawing', to: '/generators/colorize', desc: 'Colorize black & white images.' },
+        ].map((item) => (
+          <Link key={item.to} to={item.to} className="rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-shadow">
+            <div className="text-lg font-semibold text-gray-900">{item.title}</div>
+            <div className="text-sm text-gray-600 mt-2">{item.desc}</div>
+            <div className="text-sm text-indigo-600 mt-4">Open →</div>
+          </Link>
+        ))}
+      </div>
+    </PageShell>
+  )
+}
+
+function HomePage() {
+  useSeo('InkBloom — AI Coloring Page Studio', 'Turn photos and text into printable coloring pages with InkBloom.')
+  return (
+    <main>
+      <HeroSection />
+      <HowItWorksSection />
+      <FeaturesGridSection />
+      <PhotoToColoringSection />
+      <TextToColoringSection />
+      <ColoringBookSection />
+      <ImageEditorSection />
+      <ColorizeSection />
+      <GallerySection />
+      <OnlineColoringSection />
+      <TestimonialsSection />
+      <PricingSection />
+      <FAQSection />
+      <CTASection />
+    </main>
+  )
+}
+
+function GeneratorPhotoPage() {
+  useSeo('Photo to Coloring Page — InkBloom', 'Upload a photo and generate a clean black & white coloring page.')
+  return <PhotoToColoringSection />
+}
+
+function GeneratorTextPage() {
+  useSeo('Text to Coloring Page — InkBloom', 'Describe what you want and generate a coloring page from text.')
+  return <TextToColoringSection />
+}
+
+function GeneratorBookPage() {
+  useSeo('Coloring Book Generator — InkBloom', 'Generate a themed cover and pages for a coloring book.')
+  return <ColoringBookSection />
+}
+
+function GeneratorEditorPage() {
+  useSeo('AI Image Editor — InkBloom', 'Edit images with AI: colorize, enhance, style transfer, and background removal.')
+  return <ImageEditorSection />
+}
+
+function GeneratorColorizePage() {
+  useSeo('Colorize — InkBloom', 'Upload a black & white image and colorize it with AI.')
+  return <ColorizeSection />
+}
+
+function OnlineColoringPage() {
+  useSeo('Online Coloring Tool — InkBloom', 'Color online with brushes, fill, undo/redo, and download.')
+  return <OnlineColoringSection />
+}
+
+function ColoringPagesCategoryPage() {
+  const params = useParams()
+  const raw = typeof params.category === 'string' ? params.category : 'all'
+  const allowed = new Set(['all', 'animals', 'cartoons', 'holidays', 'fantasy', 'nature'])
+  const category = allowed.has(raw) ? raw : 'all'
+  const titleMap: Record<string, string> = {
+    all: 'All Coloring Pages',
+    animals: 'Animals Coloring Pages',
+    cartoons: 'Cartoons Coloring Pages',
+    holidays: 'Holidays Coloring Pages',
+    fantasy: 'Fantasy Coloring Pages',
+    nature: 'Nature Coloring Pages',
+  }
+  useSeo(`${titleMap[category]} — InkBloom`, `Browse and download ${titleMap[category].toLowerCase()} from InkBloom.`)
+  return <GallerySection initialFilter={category} />
+}
+
 // ==================== MAIN APP ====================
 function App() {
   const [user, setUser] = useState<User | null>(null)
   const [isSigningIn, setIsSigningIn] = useState(false)
+  const [authDialogOpen, setAuthDialogOpen] = useState(false)
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => setUser(u))
     return () => unsub()
+  }, [])
+
+  useEffect(() => {
+    const handler = () => setAuthDialogOpen(true)
+    window.addEventListener('auth:required', handler)
+    return () => window.removeEventListener('auth:required', handler)
   }, [])
 
   useEffect(() => {
@@ -3347,22 +3949,54 @@ function App() {
   return (
     <div className="min-h-screen bg-white">
       <Header user={user} onSignIn={handleSignIn} onSignOut={handleSignOut} isSigningIn={isSigningIn} />
-      <main>
-        <HeroSection />
-        <HowItWorksSection />
-        <FeaturesGridSection />
-        <PhotoToColoringSection />
-        <TextToColoringSection />
-        <ColoringBookSection />
-        <ImageEditorSection />
-        <ColorizeSection />
-        <GallerySection />
-        <OnlineColoringSection />
-        <TestimonialsSection />
-        <PricingSection />
-        <FAQSection />
-        <CTASection />
-      </main>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/blog" element={<BlogPage />} />
+        <Route path="/tutorials" element={<TutorialsPage />} />
+        <Route path="/help" element={<HelpPage />} />
+        <Route path="/community" element={<CommunityPage />} />
+        <Route path="/api-docs" element={<ApiDocsPage />} />
+        <Route path="/press" element={<PressPage />} />
+        <Route path="/partners" element={<PartnersPage />} />
+        <Route path="/careers" element={<CareersPage />} />
+        <Route path="/online-coloring" element={<OnlineColoringPage />} />
+        <Route path="/generators" element={<GeneratorsIndexPage />} />
+        <Route path="/generators/photo-to-coloring" element={<GeneratorPhotoPage />} />
+        <Route path="/generators/text-to-coloring" element={<GeneratorTextPage />} />
+        <Route path="/generators/coloring-book" element={<GeneratorBookPage />} />
+        <Route path="/generators/image-editor" element={<GeneratorEditorPage />} />
+        <Route path="/generators/colorize" element={<GeneratorColorizePage />} />
+        <Route path="/coloring-pages/:category" element={<ColoringPagesCategoryPage />} />
+        <Route path="*" element={<HomePage />} />
+      </Routes>
+      <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Please sign in to continue</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-gray-600">This feature requires an account.</div>
+          <div className="mt-4 flex gap-2">
+            <Button
+              className="bg-gradient-to-r from-indigo-600 to-emerald-500 text-white"
+              onClick={async () => {
+                await handleSignIn()
+                setAuthDialogOpen(false)
+              }}
+              disabled={isSigningIn}
+            >
+              {isSigningIn && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Sign In
+            </Button>
+            <Button variant="outline" onClick={() => setAuthDialogOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Footer />
     </div>
   );
