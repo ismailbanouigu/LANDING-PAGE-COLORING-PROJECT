@@ -116,6 +116,138 @@ function makePollinationsSeed() {
   return String(value <= 0 ? 1 : value)
 }
 
+type LibraryCategory = 'animals' | 'cartoons' | 'holidays' | 'fantasy' | 'nature'
+type LibraryItem = {
+  id: string
+  title: string
+  category: LibraryCategory
+  tags: string[]
+  image: string
+}
+
+function libraryImage(prompt: string, seed: number) {
+  return buildPollinationsImageUrl(prompt, {
+    model: 'flux',
+    width: 1024,
+    height: 1024,
+    nologo: true,
+    seed,
+  })
+}
+
+const LIBRARY_ITEMS: LibraryItem[] = [
+  { id: 'a-dog', title: 'Cute Dog', category: 'animals', tags: ['dogs'], image: libraryImage('cute puppy, coloring page, black and white, clean bold outlines, no shading', 10101) },
+  { id: 'a-cat', title: 'Happy Cat', category: 'animals', tags: ['cats'], image: libraryImage('cute cat sitting, coloring page, black and white, clean bold outlines, no shading', 10102) },
+  { id: 'a-eagle', title: 'Majestic Bird', category: 'animals', tags: ['birds', 'wild'], image: libraryImage('eagle flying, coloring page, black and white, clean bold outlines, no shading', 10103) },
+  { id: 'a-dolphin', title: 'Sea Creature', category: 'animals', tags: ['sea', 'sea creatures'], image: libraryImage('dolphin jumping in ocean, coloring page, black and white, clean bold outlines, no shading', 10104) },
+  { id: 'a-lion', title: 'Wild Lion', category: 'animals', tags: ['wild animals', 'wild'], image: libraryImage('lion portrait, coloring page, black and white, clean bold outlines, no shading', 10105) },
+  { id: 'a-deer', title: 'Forest Deer', category: 'animals', tags: ['wild animals', 'wild'], image: libraryImage('deer in forest, coloring page, black and white, clean bold outlines, no shading', 10106) },
+
+  { id: 'c-classic', title: 'Classic Cartoon Cat', category: 'cartoons', tags: ['classic'], image: libraryImage('classic cartoon cat, coloring page, black and white, clean bold outlines, no shading', 20201) },
+  { id: 'c-anime', title: 'Anime Hero', category: 'cartoons', tags: ['anime'], image: libraryImage('anime hero character, coloring page, black and white, clean bold outlines, no shading', 20202) },
+  { id: 'c-disney', title: 'Disney Style Princess', category: 'cartoons', tags: ['disney style'], image: libraryImage('disney style princess, coloring page, black and white, clean bold outlines, no shading', 20203) },
+  { id: 'c-super', title: 'Superhero Mask', category: 'cartoons', tags: ['superheroes'], image: libraryImage('superhero mask and cape, coloring page, black and white, clean bold outlines, no shading', 20204) },
+  { id: 'c-cute', title: 'Cute Cartoon Bunny', category: 'cartoons', tags: ['classic'], image: libraryImage('cute cartoon bunny, coloring page, black and white, clean bold outlines, no shading', 20205) },
+  { id: 'c-anime2', title: 'Anime Girl', category: 'cartoons', tags: ['anime'], image: libraryImage('anime girl portrait, coloring page, black and white, clean bold outlines, no shading', 20206) },
+
+  { id: 'h-christmas', title: 'Christmas Tree', category: 'holidays', tags: ['christmas'], image: libraryImage('christmas tree with ornaments, coloring page, black and white, clean bold outlines, no shading', 30301) },
+  { id: 'h-halloween', title: 'Halloween Pumpkin', category: 'holidays', tags: ['halloween'], image: libraryImage('halloween pumpkin and bats, coloring page, black and white, clean bold outlines, no shading', 30302) },
+  { id: 'h-easter', title: 'Easter Eggs', category: 'holidays', tags: ['easter'], image: libraryImage('easter eggs basket, coloring page, black and white, clean bold outlines, no shading', 30303) },
+  { id: 'h-valentine', title: "Valentine's Hearts", category: 'holidays', tags: ["valentine's day"], image: libraryImage("valentine's day hearts and roses, coloring page, black and white, clean bold outlines, no shading", 30304) },
+  { id: 'h-christmas2', title: 'Santa Sleigh', category: 'holidays', tags: ['christmas'], image: libraryImage('santa sleigh with reindeer, coloring page, black and white, clean bold outlines, no shading', 30305) },
+  { id: 'h-halloween2', title: 'Haunted House', category: 'holidays', tags: ['halloween'], image: libraryImage('haunted house, coloring page, black and white, clean bold outlines, no shading', 30306) },
+
+  { id: 'f-dragon', title: 'Dragon', category: 'fantasy', tags: ['dragons'], image: libraryImage('cute dragon, coloring page, black and white, clean bold outlines, no shading', 40401) },
+  { id: 'f-unicorn', title: 'Unicorn', category: 'fantasy', tags: ['unicorns'], image: libraryImage('magical unicorn, coloring page, black and white, clean bold outlines, no shading', 40402) },
+  { id: 'f-fairy', title: 'Fairy', category: 'fantasy', tags: ['fairies'], image: libraryImage('fairy with wings in forest, coloring page, black and white, clean bold outlines, no shading', 40403) },
+  { id: 'f-mermaid', title: 'Mermaid', category: 'fantasy', tags: ['mermaids'], image: libraryImage('mermaid underwater, coloring page, black and white, clean bold outlines, no shading', 40404) },
+  { id: 'f-castle', title: 'Castle', category: 'fantasy', tags: ['castles'], image: libraryImage('fantasy castle on hill, coloring page, black and white, clean bold outlines, no shading', 40405) },
+  { id: 'f-dragon2', title: 'Dragon Rider', category: 'fantasy', tags: ['dragons'], image: libraryImage('dragon rider, coloring page, black and white, clean bold outlines, no shading', 40406) },
+
+  { id: 'n-flowers', title: 'Flowers', category: 'nature', tags: ['flowers'], image: libraryImage('bouquet of flowers, coloring page, black and white, clean bold outlines, no shading', 50501) },
+  { id: 'n-trees', title: 'Trees', category: 'nature', tags: ['trees'], image: libraryImage('forest trees, coloring page, black and white, clean bold outlines, no shading', 50502) },
+  { id: 'n-mountains', title: 'Mountains', category: 'nature', tags: ['mountains', 'landscapes'], image: libraryImage('mountain landscape, coloring page, black and white, clean bold outlines, no shading', 50503) },
+  { id: 'n-ocean', title: 'Ocean Waves', category: 'nature', tags: ['ocean', 'landscapes'], image: libraryImage('ocean waves, coloring page, black and white, clean bold outlines, no shading', 50504) },
+  { id: 'n-landscape', title: 'Landscape', category: 'nature', tags: ['landscapes'], image: libraryImage('river landscape, coloring page, black and white, clean bold outlines, no shading', 50505) },
+  { id: 'n-flower2', title: 'Garden', category: 'nature', tags: ['flowers'], image: libraryImage('flower garden, coloring page, black and white, clean bold outlines, no shading', 50506) },
+]
+
+const COLORING_PAGES_PAGE_CONFIG: Record<
+  'all' | LibraryCategory,
+  { title: string; subtitle: string; filters: Array<{ id: string; label: string }> }
+> = {
+  all: {
+    title: 'Free Coloring Pages',
+    subtitle: 'Browse and download free printable coloring pages.',
+    filters: [
+      { id: 'all', label: 'All' },
+      { id: 'animals', label: 'Animals' },
+      { id: 'cartoons', label: 'Cartoons' },
+      { id: 'holidays', label: 'Holidays' },
+      { id: 'fantasy', label: 'Fantasy' },
+      { id: 'nature', label: 'Nature' },
+    ],
+  },
+  animals: {
+    title: 'Free Animal Coloring Pages',
+    subtitle: 'Dogs, cats, wild animals, birds, and more.',
+    filters: [
+      { id: 'all', label: 'All' },
+      { id: 'dogs', label: 'Dogs' },
+      { id: 'cats', label: 'Cats' },
+      { id: 'wild animals', label: 'Wild Animals' },
+      { id: 'birds', label: 'Birds' },
+      { id: 'sea creatures', label: 'Sea Creatures' },
+    ],
+  },
+  cartoons: {
+    title: 'Free Cartoon Coloring Pages',
+    subtitle: 'Cartoon styles for kids and fans of animation.',
+    filters: [
+      { id: 'all', label: 'All' },
+      { id: 'disney style', label: 'Disney Style' },
+      { id: 'anime', label: 'Anime' },
+      { id: 'superheroes', label: 'Superheroes' },
+      { id: 'classic', label: 'Classic' },
+    ],
+  },
+  holidays: {
+    title: 'Free Holiday Coloring Pages',
+    subtitle: 'Seasonal coloring pages for every celebration.',
+    filters: [
+      { id: 'all', label: 'All' },
+      { id: 'christmas', label: 'Christmas' },
+      { id: 'halloween', label: 'Halloween' },
+      { id: 'easter', label: 'Easter' },
+      { id: "valentine's day", label: "Valentine's Day" },
+    ],
+  },
+  fantasy: {
+    title: 'Free Fantasy Coloring Pages',
+    subtitle: 'Dragons, unicorns, fairies, mermaids, and castles.',
+    filters: [
+      { id: 'all', label: 'All' },
+      { id: 'dragons', label: 'Dragons' },
+      { id: 'unicorns', label: 'Unicorns' },
+      { id: 'fairies', label: 'Fairies' },
+      { id: 'mermaids', label: 'Mermaids' },
+      { id: 'castles', label: 'Castles' },
+    ],
+  },
+  nature: {
+    title: 'Free Nature Coloring Pages',
+    subtitle: 'Flowers, trees, landscapes, mountains, and ocean scenes.',
+    filters: [
+      { id: 'all', label: 'All' },
+      { id: 'flowers', label: 'Flowers' },
+      { id: 'trees', label: 'Trees' },
+      { id: 'landscapes', label: 'Landscapes' },
+      { id: 'mountains', label: 'Mountains' },
+      { id: 'ocean', label: 'Ocean' },
+    ],
+  },
+}
+
 // ==================== NAVIGATION ====================
 type HeaderProps = {
   user: User | null
@@ -292,7 +424,7 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
                   <Link
                     to={item.href}
                     className="flex items-center justify-between p-3 text-gray-700 font-medium rounded-lg hover:bg-indigo-50"
-                    onClick={() => !item.dropdown && setMobileMenuOpen(false)}
+                    onClick={() => setMobileMenuOpen(false)}
                   >
                     <span>{item.label}</span>
                     {item.badge && <Badge className="bg-indigo-600 text-white">{item.badge}</Badge>}
@@ -745,7 +877,7 @@ function PhotoToColoringSection() {
   const handleConvert = useCallback(async (fileOverride?: File) => {
     const file = fileOverride ?? photoFile
     if (!file) {
-      setError('Please choose a photo first.')
+      setError('Please choose a file first.')
       return
     }
 
@@ -834,7 +966,7 @@ function PhotoToColoringSection() {
 
               <Button
                 onClick={() => handleConvert()}
-                disabled={isConverting || !photoFile}
+                disabled={isConverting}
                 className="bg-gradient-to-r from-indigo-600 to-emerald-500 hover:from-indigo-700 hover:to-emerald-600 text-white px-8 py-6 text-lg rounded-xl"
               >
                 <Upload className="w-5 h-5 mr-2" />
@@ -918,16 +1050,21 @@ function PhotoToColoringSection() {
 // ==================== TEXT TO COLORING FEATURE ====================
 function TextToColoringSection() {
   const [prompt, setPrompt] = useState('');
+  const [style, setStyle] = useState<'Simple' | 'Detailed' | 'Realistic' | 'Cartoon' | 'Mandala'>('Detailed')
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [slowNotice, setSlowNotice] = useState(false)
   const [showImage, setShowImage] = useState(false)
+  const [lastGeneratedAt, setLastGeneratedAt] = useState<number | null>(null)
 
   const examples = [
-    { prompt: 'A cute mermaid doing yoga underwater', image: '/mermaid-yoga.jpg' },
-    { prompt: 'A magical princess in a castle garden', image: '/princess.jpg' },
-    { prompt: 'A friendly dragon breathing heart-shaped fire', image: '/dragon.jpg' },
+    { prompt: 'A cute astronaut cat on the moon', image: '/hero-cat.jpg' },
+    { prompt: 'A friendly dragon in a castle garden', image: '/dragon.jpg' },
+    { prompt: 'A magical princess and a castle', image: '/princess.jpg' },
+    { prompt: 'A magical unicorn in a rainbow forest', image: '/unicorn.jpg' },
+    { prompt: 'A puppy with flowers', image: '/dog.jpg' },
+    { prompt: 'A butterfly garden', image: '/butterfly.jpg' },
   ];
 
   useEffect(() => {
@@ -939,6 +1076,10 @@ function TextToColoringSection() {
   const handleGenerate = async () => {
     const effectivePrompt = (prompt || 'A cute astronaut cat on the moon').trim();
     if (!effectivePrompt) return;
+    if (lastGeneratedAt && Date.now() - lastGeneratedAt < 5000) {
+      setGenerateError('Please wait 5 seconds between generations.')
+      return
+    }
 
     setGenerateError(null);
     setIsGenerating(true);
@@ -946,7 +1087,14 @@ function TextToColoringSection() {
     setShowImage(false)
 
     try {
-      const coloringPrompt = `${effectivePrompt}, black and white coloring page, clean bold outlines, no shading, no colors, suitable for coloring book, high detail line art`
+      const styleHintMap: Record<typeof style, string> = {
+        Simple: 'simple shapes, minimal detail',
+        Detailed: 'high detail, intricate outlines',
+        Realistic: 'realistic proportions, natural details',
+        Cartoon: 'cute cartoon style, clean outlines',
+        Mandala: 'mandala patterns, symmetric ornamental details',
+      }
+      const coloringPrompt = `${effectivePrompt}, ${styleHintMap[style]}, black and white coloring page, clean bold outlines, no shading, no colors, suitable for coloring book, high detail line art`
       const seed = makePollinationsSeed()
       const url = buildPollinationsImageUrl(coloringPrompt, {
         model: 'flux',
@@ -962,6 +1110,7 @@ function TextToColoringSection() {
         window.clearTimeout(slowTimer)
       }
       setGeneratedImageUrl(url)
+      setLastGeneratedAt(Date.now())
       window.requestAnimationFrame(() => setShowImage(true))
     } catch (err) {
       setGenerateError(err instanceof Error ? err.message : 'Generation failed');
@@ -987,7 +1136,7 @@ function TextToColoringSection() {
         {/* Demo Input */}
         <div className="max-w-2xl mx-auto mb-16">
           <div className="bg-white rounded-2xl shadow-xl p-2">
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex-1 relative">
                 <MessageSquare className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input 
@@ -998,6 +1147,17 @@ function TextToColoringSection() {
                   className="pl-12 h-14 border-0 text-lg"
                 />
               </div>
+              <select
+                value={style}
+                onChange={(e) => setStyle(e.target.value as typeof style)}
+                className="h-14 px-4 rounded-xl border border-gray-200 bg-white text-gray-700"
+              >
+                <option value="Simple">Simple</option>
+                <option value="Detailed">Detailed</option>
+                <option value="Realistic">Realistic</option>
+                <option value="Cartoon">Cartoon</option>
+                <option value="Mandala">Mandala</option>
+              </select>
               <Button
                 onClick={handleGenerate}
                 disabled={isGenerating}
@@ -1099,245 +1259,220 @@ function TextToColoringSection() {
 
 // ==================== COLORING BOOK GENERATOR ====================
 function ColoringBookSection() {
-  const [theme, setTheme] = useState('');
-  const [character, setCharacter] = useState('');
-  const [pageNumber, setPageNumber] = useState(1);
-  const [pageCount, setPageCount] = useState(6);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [view, setView] = useState<'cover' | 'page'>('cover');
-  const [coverUrl, setCoverUrl] = useState<string | null>(null);
-  const [pageUrls, setPageUrls] = useState<Record<number, string>>({});
-  const [error, setError] = useState<string | null>(null);
+  const [theme, setTheme] = useState('')
+  const [pageCount, setPageCount] = useState(10)
+  const [style, setStyle] = useState<'Kids' | 'Adult' | 'Mandala' | 'Animals'>('Kids')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null)
+  const [pages, setPages] = useState<string[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false)
 
-  const generateImage = async (kind: 'cover' | 'page') => {
-    const t = (theme || 'A magical forest adventure').trim();
-    const c = (character || 'A cute explorer bunny').trim();
-    if (!t || !c) return;
-    if (!auth.currentUser) {
-      setError('Please sign in to continue')
-      window.dispatchEvent(new Event('auth:required'))
+  useEffect(() => {
+    return () => {
+      pages.forEach((u) => {
+        if (u.startsWith('blob:')) URL.revokeObjectURL(u)
+      })
+    }
+  }, [pages])
+
+  const clampedCount = Math.max(5, Math.min(20, Number.isFinite(pageCount) ? pageCount : 10))
+
+  const styleHintMap: Record<typeof style, string> = {
+    Kids: 'simple, kid-friendly, big shapes, minimal detail',
+    Adult: 'high detail, intricate, complex patterns',
+    Mandala: 'mandala patterns, symmetric ornamental details',
+    Animals: 'cute animals, clean bold outlines, kid-friendly',
+  }
+
+  const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))
+
+  const downloadUrlAsPng = async (url: string, filename: string) => {
+    const res = await fetch(url)
+    const blob = await res.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = filename
+    a.click()
+    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000)
+  }
+
+  const generateBook = async () => {
+    const t = (theme || 'Magical forest animals').trim()
+    if (!t) {
+      setError('Please enter a book theme.')
       return
     }
 
-    setError(null);
-    setIsGenerating(true);
+    setError(null)
+    setIsGenerating(true)
+    setPages([])
+    setProgress({ current: 0, total: clampedCount })
 
     try {
-      const baseStyle =
-        'Coloring book line art. Black and white. Clean bold outlines. No shading. No gray. White background.'
-      const prompt =
-        kind === 'cover'
-          ? `${baseStyle} Coloring book cover. Large centered title area. Theme: ${t}. Main character: ${c}.`
-          : `${baseStyle} Interior coloring page. Theme: ${t}. Main character: ${c}. Page ${pageNumber}.`
-      const seed = makePollinationsSeed()
-      const url = buildPollinationsImageUrl(prompt, {
-        model: 'flux',
-        seed,
-        nologo: true,
-        width: 1024,
-        height: 1024,
-      })
-      await preloadImage(url)
+      const base =
+        'black and white coloring page, clean bold outlines, no shading, no gray, no colors, white background, printable line art'
+      const hint = styleHintMap[style]
 
-      if (kind === 'cover') {
-        setCoverUrl((prev) => {
-          if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
-          return url
+      const generated: string[] = []
+      for (let i = 1; i <= clampedCount; i++) {
+        setProgress({ current: i, total: clampedCount })
+        const prompt = `${t}, ${hint}, ${base}, page ${i} of ${clampedCount}`
+        const seed = makePollinationsSeed()
+        const url = buildPollinationsImageUrl(prompt, {
+          model: 'flux',
+          width: 1024,
+          height: 1024,
+          nologo: true,
+          seed,
         })
-        setView('cover')
-      } else {
-        setPageUrls((prev) => {
-          const existing = prev[pageNumber]
-          if (existing?.startsWith('blob:')) URL.revokeObjectURL(existing)
-          return { ...prev, [pageNumber]: url }
-        })
-        setView('page')
+        await preloadImage(url, 60_000)
+        generated.push(url)
+        setPages([...generated])
+        if (i < clampedCount) await sleep(5000)
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
-  const clampedPageCount = Math.max(1, Math.min(200, Number.isFinite(pageCount) ? pageCount : 6));
-  const clampedPageNumber = Math.max(1, Math.min(clampedPageCount, Number.isFinite(pageNumber) ? pageNumber : 1));
-  const displayedUrl =
-    view === 'cover'
-      ? coverUrl ?? '/tortoise-hare-cover.jpg'
-      : pageUrls[clampedPageNumber] ?? '/hero-cat.jpg';
+      setProgress(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Generation failed. Please try again.')
+      setProgress(null)
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const downloadAll = async () => {
+    if (!pages.length) return
+    setIsDownloadingAll(true)
+    try {
+      for (let i = 0; i < pages.length; i++) {
+        await downloadUrlAsPng(pages[i], `inkbloom-book-page-${i + 1}.png`)
+        if (i < pages.length - 1) await sleep(1500)
+      }
+    } finally {
+      setIsDownloadingAll(false)
+    }
+  }
 
   return (
     <section id="book-feature" className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-          <div className="relative">
-            <div className="bg-gradient-to-br from-indigo-100 to-emerald-100 rounded-3xl p-8">
-              <img 
-                src={displayedUrl} 
-                alt={view === 'cover' ? 'Coloring Book Cover' : `Coloring Book Page ${clampedPageNumber}`} 
-                className="rounded-2xl shadow-2xl w-full max-w-md mx-auto bg-white"
-              />
-              <div className="mt-4">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => openOnlineColoring(displayedUrl)}
-                >
-                  Color This Online
-                </Button>
-              </div>
-              <div className="mt-6 bg-white/80 backdrop-blur rounded-xl p-4">
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-sm text-gray-500">
-                    {(theme || 'The Tortoise and the Hare Race').trim()}
-                  </span>
-                  <Badge className="bg-indigo-600 text-white">{clampedPageCount} Pages</Badge>
-                </div>
-                <div className="flex gap-2">
-                  {Array.from({ length: clampedPageCount }, (_, i) => i + 1).slice(0, 12).map((page) => (
-                    <div
-                      key={page}
-                      className={`flex-1 h-2 rounded-full ${
-                        view === 'page' && page <= clampedPageNumber ? 'bg-indigo-600' : 'bg-gray-200'
-                      }`}
-                    />
-                  ))}
-                </div>
-                <div className="flex justify-between mt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={clampedPageNumber <= 1}
-                    onClick={() => {
-                      setView('page');
-                      setPageNumber((p) => Math.max(1, p - 1));
-                    }}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-sm text-gray-500 self-center">
-                    {view === 'cover' ? 'Cover' : `Page ${clampedPageNumber} of ${clampedPageCount}`}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={clampedPageNumber >= clampedPageCount}
-                    onClick={() => {
-                      setView('page');
-                      setPageNumber((p) => Math.min(clampedPageCount, p + 1));
-                    }}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+        <div className="text-center mb-12">
+          <Badge className="bg-indigo-100 text-indigo-700 mb-4">Coloring Book Generator</Badge>
+          <h2 className="text-3xl lg:text-5xl font-bold text-gray-900 mb-4">Create a Full Coloring Book in Minutes</h2>
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            Choose a theme, select a style, and generate a complete set of pages. Generation is sequential to respect rate limits.
+          </p>
+        </div>
+
+        <div className="max-w-3xl mx-auto bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 space-y-4">
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <div className="text-sm text-gray-600 mb-2">Book Theme</div>
+              <Input value={theme} onChange={(e) => setTheme(e.target.value)} placeholder="e.g., Space adventure animals" />
             </div>
-            
-            {/* Stats Overlay */}
-            <div className="absolute -bottom-4 -right-4 bg-white rounded-xl shadow-xl p-4 border border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <BookOpen className="w-5 h-5 text-green-500" />
-                </div>
-                <div>
-                  <div className="text-lg font-bold text-gray-900">200 Pages</div>
-                  <div className="text-xs text-gray-500">Max per book</div>
-                </div>
-              </div>
+            <div>
+              <div className="text-sm text-gray-600 mb-2">Style</div>
+              <select
+                className="w-full h-10 rounded-md border border-gray-200 px-3"
+                value={style}
+                onChange={(e) => setStyle(e.target.value as typeof style)}
+              >
+                <option value="Kids">Kids</option>
+                <option value="Adult">Adult</option>
+                <option value="Mandala">Mandala</option>
+                <option value="Animals">Animals</option>
+              </select>
             </div>
           </div>
-          
-          <div className="space-y-8">
+
+          <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <Badge className="bg-gradient-to-r from-indigo-600 to-emerald-500 text-white mb-4">New Feature</Badge>
-              <h2 className="text-3xl lg:text-5xl font-bold text-gray-900 mb-4">
-                AI Multi-Page <span className="text-gradient">Coloring Book</span> Generator
-              </h2>
-              <p className="text-lg text-gray-600 leading-relaxed">
-                Create complete coloring books with consistent characters and flowing stories. 
-                Perfect for Amazon KDP publishing, Etsy shops, or personal collections.
-              </p>
+              <div className="text-sm text-gray-600 mb-2">Number of Pages (5–20)</div>
+              <Input
+                type="number"
+                min={5}
+                max={20}
+                value={clampedCount}
+                onChange={(e) => setPageCount(Number(e.target.value || 10))}
+              />
             </div>
-            
-            <div className="space-y-4">
-              {[
-                { title: 'Consistent Characters', desc: 'Same character appearance across all pages' },
-                { title: 'Flowing Storylines', desc: 'AI creates coherent narratives throughout the book' },
-                { title: 'Print-Ready Output', desc: 'High-resolution PDFs optimized for printing' },
-                { title: 'One-Click Generation', desc: 'Generate up to 200 pages with a single prompt' },
-              ].map((feature, index) => (
-                <div key={index} className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl">
-                  <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Check className="w-4 h-4 text-white" />
+            <div className="flex items-end gap-2">
+              <Button
+                className="w-full bg-gradient-to-r from-indigo-600 to-emerald-500 hover:from-indigo-700 hover:to-emerald-600 text-white"
+                onClick={() => void generateBook()}
+                disabled={isGenerating}
+              >
+                <BookOpen className="w-5 h-5 mr-2" />
+                {isGenerating ? 'Generating...' : 'Generate Book'}
+              </Button>
+              <Button
+                variant="outline"
+                className="whitespace-nowrap"
+                onClick={() => void downloadAll()}
+                disabled={isGenerating || isDownloadingAll || pages.length === 0}
+              >
+                {isDownloadingAll ? 'Downloading...' : 'Download All'}
+              </Button>
+            </div>
+          </div>
+
+          {progress && (
+            <div className="mt-2">
+              <div className="flex justify-between text-sm text-gray-600 mb-2">
+                <span>Generating page {progress.current} of {progress.total}...</span>
+                <span>{Math.round((progress.current / progress.total) * 100)}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-600 to-emerald-500"
+                  style={{ width: `${(progress.current / progress.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 flex items-center justify-between gap-3">
+              <div className="text-sm">{error}</div>
+              <Button variant="outline" onClick={() => void generateBook()} disabled={isGenerating}>
+                Retry
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {pages.length > 0 && (
+          <div className="mt-10">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {pages.map((url, idx) => (
+                <div key={url} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                  <div className="aspect-square bg-gray-50">
+                    <img
+                      src={url}
+                      alt={`Generated page ${idx + 1}`}
+                      crossOrigin="anonymous"
+                      onError={() => setError('Generation failed. Please try again.')}
+                      className="w-full h-full object-contain"
+                    />
                   </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">{feature.title}</h4>
-                    <p className="text-gray-500">{feature.desc}</p>
+                  <div className="p-4 flex items-center justify-between">
+                    <div className="text-sm text-gray-600">Page {idx + 1}</div>
+                    <Button
+                      size="sm"
+                      className="bg-gray-900 text-white hover:bg-gray-800"
+                      onClick={() => void downloadUrlAsPng(url, `inkbloom-book-page-${idx + 1}.png`)}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download
+                    </Button>
                   </div>
                 </div>
               ))}
             </div>
-            
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
-              <Input
-                value={theme}
-                onChange={(e) => setTheme(e.target.value)}
-                placeholder="Book theme (e.g., 'Space adventure')"
-              />
-              <Input
-                value={character}
-                onChange={(e) => setCharacter(e.target.value)}
-                placeholder="Main character (e.g., 'Astronaut cat')"
-              />
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  min={1}
-                  max={200}
-                  value={clampedPageCount}
-                  onChange={(e) => setPageCount(Number(e.target.value || 6))}
-                />
-                <Button
-                  variant="outline"
-                  className="whitespace-nowrap"
-                  onClick={() => setView('cover')}
-                >
-                  View Cover
-                </Button>
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  min={1}
-                  max={clampedPageCount}
-                  value={clampedPageNumber}
-                  onChange={(e) => {
-                    setView('page');
-                    setPageNumber(Number(e.target.value || 1));
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  className="whitespace-nowrap"
-                  onClick={() => generateImage('page')}
-                  disabled={isGenerating}
-                >
-                  {isGenerating ? 'Generating...' : 'Generate Page'}
-                </Button>
-              </div>
-              <Button
-                className="w-full bg-gradient-to-r from-indigo-600 to-emerald-500 hover:from-indigo-700 hover:to-emerald-600 text-white"
-                onClick={() => generateImage('cover')}
-                disabled={isGenerating}
-              >
-                <BookOpen className="w-5 h-5 mr-2" />
-                {isGenerating ? 'Generating...' : 'Generate Cover'}
-              </Button>
-              {error && <div className="text-sm text-red-600">{error}</div>}
-            </div>
           </div>
-        </div>
+        )}
       </div>
     </section>
   );
@@ -1346,7 +1481,7 @@ function ColoringBookSection() {
 function ImageEditorSection() {
   type EditMode = 'colorize' | 'enhance' | 'background' | 'style' | 'custom'
   type StyleOption = 'Anime' | 'Oil Painting' | 'Watercolor' | 'Pixel Art' | 'Sketch' | 'Pop Art'
-  type ModelOption = 'kontext' | 'gptimage' | 'seedream'
+  type ModelOption = 'kontext' | 'gptimage'
   type HistoryItem = {
     id: string
     createdAt: number
@@ -1437,31 +1572,29 @@ function ImageEditorSection() {
   }
 
   const buildPrompt = () => {
-    const base =
-      'Apply the edit to the uploaded image. Keep the same composition and subject. No text. No watermark.'
     if (mode === 'colorize') {
-      return `Colorize this black and white photograph with highly realistic and vivid natural colors, preserve all original details, textures and lighting. ${base}`
+      return 'Colorize this black and white photo with realistic natural colors preserve all details'
     }
     if (mode === 'enhance') {
-      return `Enhance this image, improve quality, sharpen details, fix lighting and colors, make it look professional. ${base}`
+      return 'Enhance this image improve quality sharpen details fix lighting'
     }
     if (mode === 'background') {
-      return `Remove the background and replace it with a clean white background. ${base}`
+      return 'Remove the background make it pure white keep the subject'
     }
     if (mode === 'style') {
       const styleMap: Record<StyleOption, string> = {
-        Anime: 'anime illustration',
-        'Oil Painting': 'oil painting',
-        Watercolor: 'watercolor',
-        'Pixel Art': 'pixel art',
-        Sketch: 'pencil sketch',
-        'Pop Art': 'pop art',
+        Anime: 'Convert to anime style',
+        'Oil Painting': 'Convert to oil painting style',
+        Watercolor: 'Convert to watercolor style',
+        'Pixel Art': 'Convert to pixel art style',
+        Sketch: 'Convert to sketch style',
+        'Pop Art': 'Convert to pop art style',
       }
-      return `Stylize this image into a ${styleMap[style]} style while preserving the original composition and subject. ${base}`
+      return styleMap[style]
     }
     const trimmed = customPrompt.trim()
-    if (!trimmed) return `Enhance this image, improve quality, sharpen details, fix lighting and colors, make it look professional. ${base}`
-    return `${trimmed}. ${base}`
+    if (!trimmed) return 'Enhance this image improve quality sharpen details fix lighting'
+    return trimmed
   }
 
   const uploadIfNeeded = async (targetFile: File, controller: AbortController) => {
@@ -1645,18 +1778,16 @@ function ImageEditorSection() {
 
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                <div className="text-sm text-slate-300 mb-2">Edit</div>
-                <select
-                  className="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2"
-                  value={mode}
-                  onChange={(e) => setMode(e.target.value as EditMode)}
-                >
-                  <option value="colorize">Colorize</option>
-                  <option value="enhance">Enhance</option>
-                  <option value="background">Background Remove</option>
-                  <option value="style">Style Transfer</option>
-                  <option value="custom">Custom Edit</option>
-                </select>
+                <div className="text-sm text-slate-300 mb-3">Edit Type</div>
+                <Tabs value={mode} onValueChange={(v) => setMode(v as EditMode)}>
+                  <TabsList className="grid grid-cols-2 sm:grid-cols-3 bg-slate-900/70">
+                    <TabsTrigger value="colorize">Colorize</TabsTrigger>
+                    <TabsTrigger value="enhance">Enhance</TabsTrigger>
+                    <TabsTrigger value="style">Style</TabsTrigger>
+                    <TabsTrigger value="background">Background</TabsTrigger>
+                    <TabsTrigger value="custom">Custom</TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </div>
               <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                 <div className="text-sm text-slate-300 mb-2">Model</div>
@@ -1667,7 +1798,6 @@ function ImageEditorSection() {
                 >
                   <option value="kontext">kontext (fast)</option>
                   <option value="gptimage">gptimage (high quality)</option>
-                  <option value="seedream">seedream (creative)</option>
                 </select>
               </div>
             </div>
@@ -1842,6 +1972,9 @@ function ColorizeSection() {
   const [isColorizing, setIsColorizing] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [colorStyle, setColorStyle] = useState<'Natural' | 'Vintage' | 'Vibrant' | 'Warm' | 'Cool'>('Natural')
+  const [compare, setCompare] = useState(50)
+  const [slowNotice, setSlowNotice] = useState(false)
 
   useEffect(() => {
     if (!drawingFile) {
@@ -1892,10 +2025,17 @@ function ColorizeSection() {
 
     setError(null)
     setIsColorizing(true)
+    setSlowNotice(false)
 
     try {
-      const prompt =
-        'Colorize this black and white photo with highly realistic natural colors, preserve all details, textures and lighting'
+      const stylePromptMap: Record<typeof colorStyle, string> = {
+        Natural: 'Colorize with highly realistic natural colors',
+        Vintage: 'Colorize with warm vintage 1970s Kodak film tones',
+        Vibrant: 'Colorize with vivid saturated bright colors',
+        Warm: 'Colorize with warm golden sunset tones',
+        Cool: 'Colorize with cool blue cinematic colors',
+      }
+      const prompt = stylePromptMap[colorStyle]
       const seed = makePollinationsSeed()
       const imageUrl = await uploadToPollinations(drawingFile)
       const url = buildPollinationsImageUrl(prompt, {
@@ -1907,7 +2047,12 @@ function ColorizeSection() {
         seed,
       })
       setResultUrl(url)
-      await preloadImage(url)
+      const slowTimer = window.setTimeout(() => setSlowNotice(true), 30_000)
+      try {
+        await preloadImage(url, 60_000)
+      } finally {
+        window.clearTimeout(slowTimer)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Colorization failed')
     } finally {
@@ -1940,10 +2085,10 @@ function ColorizeSection() {
             <div>
               <Badge className="bg-indigo-100 text-indigo-700 mb-4">AI Colorization</Badge>
               <h2 className="text-3xl lg:text-5xl font-bold text-gray-900 mb-4">
-                Colorize <span className="text-gradient">Black & White Photos</span>
+                Bring Old Photos <span className="text-gradient">Back to Life</span> with AI
               </h2>
               <p className="text-lg text-gray-600 leading-relaxed">
-                Upload a black-and-white image and get a highly realistic colorized result with natural colors while preserving details and lighting.
+                Upload a black & white photo, pick a color style, and get a beautiful colorized result while preserving detail and lighting.
               </p>
             </div>
             
@@ -1965,6 +2110,21 @@ function ColorizeSection() {
             </div>
 
             <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {(['Natural', 'Vintage', 'Vibrant', 'Warm', 'Cool'] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setColorStyle(s)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                      colorStyle === s
+                        ? 'bg-gradient-to-r from-indigo-600 to-emerald-500 text-white'
+                        : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -2036,6 +2196,12 @@ function ColorizeSection() {
                 <Paintbrush className="w-5 h-5 mr-2" />
                 {isColorizing ? 'Colorizing...' : 'Colorize Image'}
               </Button>
+              {isColorizing && (
+                <div className="text-sm text-gray-500">
+                  Generating... (10-30 seconds)
+                  {slowNotice && <div className="mt-1">This is taking longer than usual...</div>}
+                </div>
+              )}
               {error && <div className="text-sm text-red-600">{error}</div>}
             </div>
           </div>
@@ -2044,36 +2210,48 @@ function ColorizeSection() {
             <div className="relative">
               <div className="bg-white rounded-3xl shadow-2xl p-6">
                 {drawingPreviewUrl && (resultUrl || isColorizing) ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="bg-gray-50 rounded-2xl p-3">
-                      <img src={drawingPreviewUrl} alt="Original" className="rounded-xl w-full h-64 object-contain" />
-                      <p className="text-center text-sm text-gray-500 mt-2">Original</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-2xl p-3 flex items-center justify-center">
-                      {isColorizing ? (
-                        <div className="flex flex-col items-center gap-3 py-12">
-                          <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
-                          <div className="text-sm text-gray-600">Colorizing...</div>
-                        </div>
-                      ) : resultUrl ? (
-                        <div className="w-full">
+                  <div className="space-y-4">
+                    <div className="relative rounded-2xl overflow-hidden bg-gray-50">
+                      <div className="relative w-full h-[420px]">
+                        {resultUrl && (
                           <img
                             src={resultUrl}
-                            alt="Colorized"
+                            alt="After"
                             crossOrigin="anonymous"
                             onError={() => setError('Generation failed, please try again')}
-                            className="rounded-xl w-full h-64 object-contain"
+                            className="absolute inset-0 w-full h-full object-contain"
                           />
-                          <p className="text-center text-sm text-gray-500 mt-2">Colorized</p>
-                          <div className="mt-3">
-                            <Button className="w-full bg-gray-900 text-white hover:bg-gray-800" onClick={handleDownload}>
-                              <Download className="w-4 h-4 mr-2" />
-                              Download
-                            </Button>
+                        )}
+                        <img
+                          src={drawingPreviewUrl}
+                          alt="Before"
+                          className="absolute inset-0 w-full h-full object-contain"
+                          style={resultUrl ? { clipPath: `inset(0 ${100 - compare}% 0 0)` } : undefined}
+                        />
+                        {resultUrl && (
+                          <div className="absolute inset-y-0" style={{ left: `${compare}%` }}>
+                            <div className="w-0.5 h-full bg-gray-900/60" />
                           </div>
-                        </div>
-                      ) : null}
+                        )}
+                      </div>
                     </div>
+
+                    {resultUrl && (
+                      <div className="space-y-3">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={compare}
+                          onChange={(e) => setCompare(Number(e.target.value))}
+                          className="w-full"
+                        />
+                        <Button className="w-full bg-gray-900 text-white hover:bg-gray-800" onClick={handleDownload}>
+                          <Download className="w-4 h-4 mr-2" />
+                          Download
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="relative rounded-2xl overflow-hidden">
@@ -2084,6 +2262,31 @@ function ColorizeSection() {
               </div>
             </div>
 
+          </div>
+        </div>
+
+        <div className="mt-14">
+          <div className="text-center mb-8">
+            <h3 className="text-2xl font-bold text-gray-900">Example Colorizations</h3>
+            <p className="text-gray-600 mt-2">A few styles you can create in seconds.</p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { title: 'Natural Portrait', img: '/lion.jpg' },
+              { title: 'Warm Vintage', img: '/cityscape.jpg' },
+              { title: 'Vibrant Colors', img: '/unicorn.jpg' },
+              { title: 'Cool Cinematic', img: '/mermaid-yoga.jpg' },
+            ].map((ex) => (
+              <div key={ex.title} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                <div className="aspect-square bg-gray-50">
+                  <img src={ex.img} alt={ex.title} className="w-full h-full object-cover" />
+                </div>
+                <div className="p-4">
+                  <div className="font-semibold text-gray-900">{ex.title}</div>
+                  <div className="text-sm text-gray-600 mt-1">Upload your own photo to recreate.</div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -2097,28 +2300,23 @@ function GallerySection({ initialFilter }: { initialFilter?: string }) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const filters = [
-    { id: 'all', label: 'All', count: 32 },
-    { id: 'animals', label: 'Animals', count: 8 },
-    { id: 'cartoons', label: 'Cartoons', count: 6 },
-    { id: 'fantasy', label: 'Fantasy', count: 5 },
-    { id: 'holidays', label: 'Holidays', count: 4 },
-    { id: 'nature', label: 'Nature', count: 9 },
+    { id: 'all', label: 'All', count: LIBRARY_ITEMS.length },
+    { id: 'animals', label: 'Animals', count: LIBRARY_ITEMS.filter((x) => x.category === 'animals').length },
+    { id: 'cartoons', label: 'Cartoons', count: LIBRARY_ITEMS.filter((x) => x.category === 'cartoons').length },
+    { id: 'fantasy', label: 'Fantasy', count: LIBRARY_ITEMS.filter((x) => x.category === 'fantasy').length },
+    { id: 'holidays', label: 'Holidays', count: LIBRARY_ITEMS.filter((x) => x.category === 'holidays').length },
+    { id: 'nature', label: 'Nature', count: LIBRARY_ITEMS.filter((x) => x.category === 'nature').length },
   ];
 
-  const coloringPages = [
-    { id: 1, image: '/deer.jpg', title: 'Cute Deer in Forest', category: 'animals', pages: '68', downloads: '2.4k', likes: 156 },
-    { id: 2, image: '/dog.jpg', title: 'Puppy with Flowers', category: 'animals', pages: '40', downloads: '1.8k', likes: 124 },
-    { id: 3, image: '/hellokitty.jpg', title: 'Hello Kitty Style', category: 'cartoons', pages: '52', downloads: '3.2k', likes: 289 },
-    { id: 4, image: '/cityscape.jpg', title: 'Magical Cityscape', category: 'fantasy', pages: '77', downloads: '1.5k', likes: 98 },
-    { id: 5, image: '/rabbit-lake.jpg', title: 'Rabbit by the Lake', category: 'animals', pages: '39', downloads: '2.1k', likes: 167 },
-    { id: 6, image: '/mermaid-yoga.jpg', title: 'Mermaid Yoga', category: 'fantasy', pages: '50', downloads: '2.8k', likes: 234 },
-    { id: 7, image: '/butterfly.jpg', title: 'Butterfly Garden', category: 'nature', pages: '45', downloads: '1.9k', likes: 145 },
-    { id: 8, image: '/unicorn.jpg', title: 'Magical Unicorn', category: 'fantasy', pages: '62', downloads: '3.5k', likes: 312 },
-    { id: 9, image: '/christmas-tree.jpg', title: 'Christmas Tree', category: 'holidays', pages: '38', downloads: '2.2k', likes: 178 },
-    { id: 10, image: '/halloween.jpg', title: 'Halloween Pumpkin', category: 'holidays', pages: '42', downloads: '1.6k', likes: 134 },
-    { id: 11, image: '/princess.jpg', title: 'Princess & Castle', category: 'fantasy', pages: '55', downloads: '2.9k', likes: 256 },
-    { id: 12, image: '/dragon.jpg', title: 'Cute Dragon', category: 'fantasy', pages: '48', downloads: '2.3k', likes: 189 },
-  ];
+  const coloringPages = LIBRARY_ITEMS.map((item, index) => ({
+    id: item.id,
+    image: item.image,
+    title: item.title,
+    category: item.category,
+    pages: String(24 + ((index * 7) % 68)),
+    downloads: `${1 + ((index * 3) % 9)}.${(index * 7) % 10}k`,
+    likes: 80 + ((index * 19) % 260),
+  }))
 
   const filteredPages = activeFilter === 'all' 
     ? coloringPages 
@@ -3419,7 +3617,7 @@ function Footer() {
           <div className="flex gap-6 text-sm">
             <Link to="/privacy" className="text-gray-500 hover:text-white transition-colors">Privacy Policy</Link>
             <Link to="/terms" className="text-gray-500 hover:text-white transition-colors">Terms of Service</Link>
-            <Link to="/privacy" className="text-gray-500 hover:text-white transition-colors">Cookie Policy</Link>
+            <Link to="/cookies" className="text-gray-500 hover:text-white transition-colors">Cookie Policy</Link>
           </div>
         </div>
       </div>
@@ -3526,6 +3724,32 @@ function PrivacyPage() {
       </p>
       <h2>Contact</h2>
       <p>For privacy requests, contact us via the Contact page.</p>
+    </PageShell>
+  )
+}
+
+function CookiesPage() {
+  return (
+    <PageShell title="Cookie Policy" description="InkBloom Cookie Policy. Learn what cookies are used and how to control them.">
+      <p>
+        This Cookie Policy explains how InkBloom uses cookies and similar technologies to provide and improve the service.
+      </p>
+      <h2>What Are Cookies?</h2>
+      <p>
+        Cookies are small text files stored on your device. They help websites remember preferences and understand how users interact with pages.
+      </p>
+      <h2>Cookies We Use</h2>
+      <ul>
+        <li>Essential cookies: required for basic site functionality and security.</li>
+        <li>Preferences: remember settings like UI preferences.</li>
+        <li>Analytics: help us understand usage and improve performance (where enabled).</li>
+      </ul>
+      <h2>Managing Cookies</h2>
+      <p>
+        You can control cookies through your browser settings. You can delete existing cookies and block future cookies, but some features may stop working.
+      </p>
+      <h2>Updates</h2>
+      <p>We may update this Cookie Policy as the product evolves.</p>
     </PageShell>
   )
 }
@@ -3793,49 +4017,213 @@ function HomePage() {
 
 function GeneratorPhotoPage() {
   useSeo('Photo to Coloring Page — InkBloom', 'Upload a photo and generate a clean black & white coloring page.')
-  return <PhotoToColoringSection />
+  return (
+    <div className="pt-24">
+      <PhotoToColoringSection />
+    </div>
+  )
 }
 
 function GeneratorTextPage() {
   useSeo('Text to Coloring Page — InkBloom', 'Describe what you want and generate a coloring page from text.')
-  return <TextToColoringSection />
+  return (
+    <div className="pt-24">
+      <TextToColoringSection />
+    </div>
+  )
 }
 
 function GeneratorBookPage() {
   useSeo('Coloring Book Generator — InkBloom', 'Generate a themed cover and pages for a coloring book.')
-  return <ColoringBookSection />
+  return (
+    <div className="pt-24">
+      <ColoringBookSection />
+    </div>
+  )
 }
 
 function GeneratorEditorPage() {
   useSeo('AI Image Editor — InkBloom', 'Edit images with AI: colorize, enhance, style transfer, and background removal.')
-  return <ImageEditorSection />
+  return (
+    <div className="pt-24">
+      <ImageEditorSection />
+    </div>
+  )
 }
 
 function GeneratorColorizePage() {
   useSeo('Colorize — InkBloom', 'Upload a black & white image and colorize it with AI.')
-  return <ColorizeSection />
+  return (
+    <div className="pt-24">
+      <ColorizeSection />
+    </div>
+  )
 }
 
 function OnlineColoringPage() {
   useSeo('Online Coloring Tool — InkBloom', 'Color online with brushes, fill, undo/redo, and download.')
-  return <OnlineColoringSection />
+  return (
+    <div className="pt-24">
+      <OnlineColoringSection />
+    </div>
+  )
 }
 
 function ColoringPagesCategoryPage() {
   const params = useParams()
   const raw = typeof params.category === 'string' ? params.category : 'all'
   const allowed = new Set(['all', 'animals', 'cartoons', 'holidays', 'fantasy', 'nature'])
-  const category = allowed.has(raw) ? raw : 'all'
-  const titleMap: Record<string, string> = {
-    all: 'All Coloring Pages',
-    animals: 'Animals Coloring Pages',
-    cartoons: 'Cartoons Coloring Pages',
-    holidays: 'Holidays Coloring Pages',
-    fantasy: 'Fantasy Coloring Pages',
-    nature: 'Nature Coloring Pages',
+  const category = (allowed.has(raw) ? raw : 'all') as 'all' | LibraryCategory
+
+  const config = COLORING_PAGES_PAGE_CONFIG[category]
+  useSeo(`${config.title} — InkBloom`, config.subtitle)
+
+  const [activeFilter, setActiveFilter] = useState(config.filters[0]?.id ?? 'all')
+  const [visibleCount, setVisibleCount] = useState(12)
+  const [likedIds, setLikedIds] = useState<Record<string, boolean>>(() => {
+    try {
+      const rawValue = localStorage.getItem('INKBLOOM_LIKES')
+      if (!rawValue) return {}
+      const parsed = JSON.parse(rawValue) as unknown
+      if (!parsed || typeof parsed !== 'object') return {}
+      return parsed as Record<string, boolean>
+    } catch {
+      return {}
+    }
+  })
+
+  useEffect(() => {
+    const nextFilter = COLORING_PAGES_PAGE_CONFIG[category].filters[0]?.id ?? 'all'
+    const id = window.setTimeout(() => {
+      setActiveFilter(nextFilter)
+      setVisibleCount(12)
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [category])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('INKBLOOM_LIKES', JSON.stringify(likedIds))
+    } catch {
+      return
+    }
+  }, [likedIds])
+
+  const downloadPng = async (url: string, filename: string) => {
+    try {
+      const res = await fetch(url)
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = filename
+      a.click()
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000)
+    } catch {
+      window.open(url, '_blank', 'noopener,noreferrer')
+    }
   }
-  useSeo(`${titleMap[category]} — InkBloom`, `Browse and download ${titleMap[category].toLowerCase()} from InkBloom.`)
-  return <GallerySection initialFilter={category} />
+
+  const allItems = category === 'all' ? LIBRARY_ITEMS : LIBRARY_ITEMS.filter((x) => x.category === category)
+  const filtered =
+    activeFilter === 'all'
+      ? allItems
+      : allItems.filter((x) => x.tags.map((t) => t.toLowerCase()).includes(activeFilter.toLowerCase()))
+
+  const shown = filtered.slice(0, visibleCount)
+
+  return (
+    <div className="pt-24">
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <Badge className="bg-green-100 text-green-600 mb-4">Free Library</Badge>
+            <h1 className="text-3xl lg:text-5xl font-bold text-gray-900">{config.title}</h1>
+            <p className="text-lg text-gray-600 mt-3 max-w-2xl mx-auto">{config.subtitle}</p>
+          </div>
+
+          <div className="flex flex-wrap gap-2 justify-center mb-8">
+            {config.filters.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => {
+                  setActiveFilter(f.id)
+                  setVisibleCount(12)
+                }}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  activeFilter === f.id
+                    ? 'bg-gradient-to-r from-indigo-600 to-emerald-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {shown.map((item) => (
+              <div key={item.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+                <div className="relative aspect-square bg-gray-50">
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    crossOrigin="anonymous"
+                    className="w-full h-full object-contain"
+                  />
+                  <div className="absolute top-3 left-3">
+                    <Badge className="bg-green-100 text-green-700">Free</Badge>
+                  </div>
+                  <button
+                    className="absolute top-3 right-3 w-10 h-10 bg-white/90 rounded-full flex items-center justify-center border border-gray-200"
+                    onClick={() => {
+                      if (!auth.currentUser) {
+                        window.dispatchEvent(new Event('auth:required'))
+                        return
+                      }
+                      setLikedIds((prev) => ({ ...prev, [item.id]: !prev[item.id] }))
+                    }}
+                  >
+                    <Heart className={`w-5 h-5 ${likedIds[item.id] ? 'text-red-500 fill-red-500' : 'text-gray-600'}`} />
+                  </button>
+                </div>
+                <div className="p-4">
+                  <div className="font-semibold text-gray-900 truncate">{item.title}</div>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      className="flex-1 bg-gray-900 text-white hover:bg-gray-800"
+                      onClick={() => void downloadPng(item.image, `${item.id}.png`)}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => openOnlineColoring(item.image)}
+                    >
+                      Color Online
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {shown.length < filtered.length && (
+            <div className="text-center mt-10">
+              <Button variant="outline" className="px-8 py-6 text-lg" onClick={() => setVisibleCount((n) => n + 12)}>
+                Load More
+                <ChevronDown className="w-5 h-5 ml-2" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  )
 }
 
 // ==================== MAIN APP ====================
@@ -3921,6 +4309,7 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/cookies" element={<CookiesPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/contact" element={<ContactPage />} />
