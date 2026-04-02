@@ -17,6 +17,17 @@ export default {
   ) {
     const url = new URL(request.url)
 
+    if (url.pathname === '/api/status') {
+      return new Response(JSON.stringify({ pollinationsConfigured: Boolean(env.POLLINATIONS_API_KEY) }), {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          'access-control-allow-origin': '*',
+          'cache-control': 'no-store',
+        },
+      })
+    }
+
     if (url.pathname === '/api/text-to-coloring') {
       if (request.method === 'OPTIONS') {
         return new Response(null, {
@@ -38,26 +49,25 @@ export default {
 
       const key = env.POLLINATIONS_API_KEY
       if (!key) {
-        return new Response(JSON.stringify({ error: 'Service unavailable' }), {
+        return new Response(JSON.stringify({ error: 'Text generator is not configured on the server.' }), {
           status: 503,
           headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
         })
       }
 
-      let body: unknown = null
+      let body: Record<string, unknown> | null = null
       try {
-        body = await request.json()
+        const parsed = (await request.json()) as unknown
+        body = parsed && typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : null
       } catch {
         body = null
       }
 
-      const prompt =
-        body && typeof body === 'object' && body !== null && typeof (body as any).prompt === 'string'
-          ? String((body as any).prompt)
+      const prompt = body && typeof body.prompt === 'string'
+          ? String(body.prompt)
           : ''
-      const style =
-        body && typeof body === 'object' && body !== null && typeof (body as any).style === 'string'
-          ? String((body as any).style)
+      const style = body && typeof body.style === 'string'
+          ? String(body.style)
           : 'Detailed'
 
       const trimmed = prompt.trim()
@@ -78,9 +88,9 @@ export default {
       const styleHint = styleHintMap[style] || styleHintMap.Detailed
       const coloringPrompt = `${trimmed}, ${styleHint}, black and white coloring page, clean bold outlines, no shading, no colors, white background, printable, suitable for kids coloring book, line art`
 
-      const target = `https://image.pollinations.ai/prompt/${encodeURIComponent(
+      const target = `https://gen.pollinations.ai/image/${encodeURIComponent(
         coloringPrompt
-      )}?model=flux&width=1024&height=1024&nologo=true&key=${encodeURIComponent(key)}`
+      )}?model=flux&width=1024&height=1024&nologo=true&private=true&safe=true`
       const resp = await fetch(target, {
         cf: { cacheEverything: true, cacheTtl: 3600 },
         headers: {
