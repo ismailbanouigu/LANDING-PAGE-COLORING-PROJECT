@@ -117,7 +117,19 @@ async function colorizeWithDeepAI(image: File | string, signal?: AbortSignal) {
     return deepaiCandidate as unknown as DeepAiClient
   })()
 
-  if (deepai?.setApiKey && deepai?.callStandardApi) {
+  const isDomInput =
+    typeof image !== 'string' &&
+    typeof window !== 'undefined' &&
+    typeof HTMLInputElement !== 'undefined' &&
+    image instanceof HTMLInputElement &&
+    image.type === 'file'
+
+  const isDomImg =
+    typeof window !== 'undefined' &&
+    typeof HTMLImageElement !== 'undefined' &&
+    (image as unknown) instanceof HTMLImageElement
+
+  if (deepai?.setApiKey && deepai?.callStandardApi && (isDomInput || isDomImg)) {
     deepai.setApiKey(String(key))
     const response = await deepai.callStandardApi('colorizer', { image })
     const outputUrl =
@@ -988,16 +1000,27 @@ function PhotoToColoringSection() {
     setCompare(50)
 
     try {
-      if (modelStatus !== 'ready') {
-        setModelStatus('loading')
-        setProgressText('Loading AI model...')
-        await getLineArtSession()
-        setModelStatus('ready')
+      // Try backend first (Cloud Run) via Worker proxy
+      setProgressText('Uploading...')
+      const fd = new FormData()
+      fd.append('image', file)
+      const resp = await fetch('/api/convert', { method: 'POST', body: fd })
+      if (resp.ok && (resp.headers.get('content-type') || '').includes('image')) {
+        const blob = await resp.blob()
+        const url = URL.createObjectURL(blob)
+        setResultUrl(url)
+      } else {
+        // Fallback to ONNX in browser
+        if (modelStatus !== 'ready') {
+          setModelStatus('loading')
+          setProgressText('Loading AI model...')
+          await getLineArtSession()
+          setModelStatus('ready')
+        }
+        setProgressText('Converting your photo...')
+        const dataUrl = await convertFileToLineArtDataUrl(file)
+        setResultUrl(dataUrl)
       }
-
-      setProgressText('Converting your photo...')
-      const dataUrl = await convertFileToLineArtDataUrl(file)
-      setResultUrl(dataUrl)
     } catch (err) {
       setModelStatus((prev) => (prev === 'loading' ? 'error' : prev))
       setError(err instanceof Error ? err.message : 'Conversion failed')
@@ -1886,14 +1909,9 @@ function ImageEditorSection() {
         setHistory((prev) => [item, ...prev].slice(0, 10))
         return
       }
-      const outUrl = buildPollinationsImageUrl(promptText, {
-        image: imageUrl,
-        model: effectiveModel,
-        width: 1024,
-        height: 1024,
-        seed: effectiveSeed,
-        nologo: true,
-      })
+      const outUrl = `/api/edit-image?prompt=${encodeURIComponent(promptText)}&model=${encodeURIComponent(
+        effectiveModel
+      )}&image=${encodeURIComponent(imageUrl)}`
       setResultUrl(outUrl)
       await preloadImageWithRetry(outUrl, 120_000, 1)
 
