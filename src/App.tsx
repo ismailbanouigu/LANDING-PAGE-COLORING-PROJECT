@@ -101,6 +101,25 @@ async function colorizeWithDeepAI(image: File | string, signal?: AbortSignal) {
   const env = (import.meta as unknown as { env?: Record<string, string> }).env
   const key = env?.VITE_DEEPAI_API_KEY || DEEPAI_QUICKSTART_KEY
 
+  try {
+    const form = new FormData()
+    form.append('image', image)
+    const proxyRes = await fetch('/api/deepai-colorize', { method: 'POST', body: form, signal })
+    if (proxyRes.ok) {
+      const proxyJson = (await proxyRes.json()) as unknown
+      const outputUrl =
+        proxyJson &&
+        typeof proxyJson === 'object' &&
+        proxyJson !== null &&
+        typeof (proxyJson as Record<string, unknown>).output_url === 'string'
+          ? String((proxyJson as Record<string, unknown>).output_url)
+          : null
+      if (outputUrl) return outputUrl
+    }
+  } catch {
+    // fall back to direct call
+  }
+
   type DeepAiClient = {
     setApiKey: (k: string) => void
     callStandardApi: (name: string, inputs: Record<string, unknown>) => Promise<unknown>

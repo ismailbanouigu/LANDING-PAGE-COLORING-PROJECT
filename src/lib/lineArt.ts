@@ -31,7 +31,9 @@ function getOrt(): Ort {
     throw new Error('AI model failed to load, please try again')
   }
   const create =
-    typeof inference === 'object' && inference !== null ? (inference as Record<string, unknown>).create : undefined
+    typeof inference === 'function'
+      ? (inference as unknown as Record<string, unknown>).create
+      : (inference as Record<string, unknown>).create
   if (typeof create !== 'function') {
     throw new Error('AI model failed to load, please try again')
   }
@@ -41,11 +43,25 @@ function getOrt(): Ort {
   return ortCandidate as Ort
 }
 
+function configureOrtWasmPaths() {
+  const ortCandidate =
+    typeof window !== 'undefined' ? (window as unknown as { ort?: unknown }).ort : undefined
+  if (!ortCandidate || typeof ortCandidate !== 'object') return
+  const record = ortCandidate as Record<string, unknown>
+  const env = record.env as Record<string, unknown> | undefined
+  const wasm = env?.wasm as Record<string, unknown> | undefined
+  if (!wasm) return
+  if (typeof wasm.wasmPaths === 'undefined') {
+    wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/'
+  }
+}
+
 let sessionPromise: Promise<OrtSession> | null = null
 
 export async function getLineArtSession() {
   if (!sessionPromise) {
     const ort = getOrt()
+    configureOrtWasmPaths()
     sessionPromise = ort.InferenceSession.create(LINE_ART_MODEL_URL)
   }
   return sessionPromise
