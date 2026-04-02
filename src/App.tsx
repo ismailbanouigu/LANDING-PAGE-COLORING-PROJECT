@@ -94,13 +94,7 @@ async function uploadToPollinations(file: File, signal?: AbortSignal) {
   return urlValue
 }
 
-const DEEPAI_COLORIZER_URL = 'https://api.deepai.org/api/colorizer'
-const DEEPAI_QUICKSTART_KEY = 'quickstart-QUdJIGlzIGNvbWluZy4uLi4K'
-
 async function colorizeWithDeepAI(image: File | string, signal?: AbortSignal) {
-  const env = (import.meta as unknown as { env?: Record<string, string> }).env
-  const key = env?.VITE_DEEPAI_API_KEY || DEEPAI_QUICKSTART_KEY
-
   try {
     const form = new FormData()
     form.append('image', image)
@@ -116,90 +110,15 @@ async function colorizeWithDeepAI(image: File | string, signal?: AbortSignal) {
           : null
       if (outputUrl) return outputUrl
     }
-  } catch {
-    // fall back to direct call
-  }
-
-  type DeepAiClient = {
-    setApiKey: (k: string) => void
-    callStandardApi: (name: string, inputs: Record<string, unknown>) => Promise<unknown>
-  }
-
-  const deepaiCandidate =
-    typeof window !== 'undefined' ? (window as unknown as { deepai?: unknown }).deepai : undefined
-
-  const deepai = (() => {
-    if (!deepaiCandidate || typeof deepaiCandidate !== 'object') return null
-    const record = deepaiCandidate as Record<string, unknown>
-    if (typeof record.setApiKey !== 'function') return null
-    if (typeof record.callStandardApi !== 'function') return null
-    return deepaiCandidate as unknown as DeepAiClient
-  })()
-
-  const isDomInput =
-    typeof image !== 'string' &&
-    typeof window !== 'undefined' &&
-    typeof HTMLInputElement !== 'undefined' &&
-    image instanceof HTMLInputElement &&
-    image.type === 'file'
-
-  const isDomImg =
-    typeof window !== 'undefined' &&
-    typeof HTMLImageElement !== 'undefined' &&
-    (image as unknown) instanceof HTMLImageElement
-
-  if (deepai?.setApiKey && deepai?.callStandardApi && (isDomInput || isDomImg)) {
-    deepai.setApiKey(String(key))
-    const response = await deepai.callStandardApi('colorizer', { image })
-    const outputUrl =
-      response && typeof response === 'object' && typeof (response as Record<string, unknown>).output_url === 'string'
-        ? String((response as Record<string, unknown>).output_url)
-        : null
-    if (!outputUrl) throw new Error('Colorization failed, please try again')
-    return outputUrl
-  }
-
-  const form = new FormData()
-  form.append('image', image)
-
-  const res = await fetch(DEEPAI_COLORIZER_URL, {
-    method: 'POST',
-    headers: {
-      'api-key': String(key),
-    },
-    body: form,
-    signal,
-  })
-
-  let json: unknown = null
-  try {
-    json = await res.json()
-  } catch {
-    json = null
-  }
-
-  if (!res.ok) {
+    const errJson = (await proxyRes.json().catch(() => null)) as unknown
     const errText =
-      json && typeof json === 'object' && json !== null && typeof (json as Record<string, unknown>).err === 'string'
-        ? String((json as Record<string, unknown>).err)
+      errJson && typeof errJson === 'object' && errJson !== null && typeof (errJson as Record<string, unknown>).error === 'string'
+        ? String((errJson as Record<string, unknown>).error)
         : null
-    const message =
-      errText ||
-      (typeof json === 'string' && json.trim() ? json.trim() : '') ||
-      'Colorization failed, please try again'
-    throw new Error(message)
+    throw new Error(errText || 'Colorization failed, please try again')
+  } catch (err) {
+    throw err instanceof Error ? err : new Error('Colorization failed, please try again')
   }
-
-  const outputUrl =
-    json &&
-    typeof json === 'object' &&
-    json !== null &&
-    typeof (json as Record<string, unknown>).output_url === 'string'
-      ? String((json as Record<string, unknown>).output_url)
-      : null
-
-  if (!outputUrl) throw new Error('Colorization failed, please try again')
-  return outputUrl
 }
 
 function preloadImage(url: string, timeoutMs = 120_000) {

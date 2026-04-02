@@ -1,5 +1,4 @@
-const LINE_ART_MODEL_URL =
-  'https://huggingface.co/rocca/informative-drawings-line-art-onnx/resolve/main/informative-drawings_model_3.onnx'
+const LINE_ART_MODEL_URL = '/models/lineart.onnx'
 
 type OrtTensor = {
   data: Float32Array | Uint8Array | Int32Array | number[]
@@ -62,7 +61,14 @@ export async function getLineArtSession() {
   if (!sessionPromise) {
     const ort = getOrt()
     configureOrtWasmPaths()
-    sessionPromise = ort.InferenceSession.create(LINE_ART_MODEL_URL)
+    sessionPromise = ort.InferenceSession.create(LINE_ART_MODEL_URL).catch((err) => {
+      sessionPromise = null
+      const message = err instanceof Error ? err.message : String(err)
+      if (message.toLowerCase().includes('failed to fetch') || message.toLowerCase().includes('network')) {
+        throw new Error('Failed to download AI model. Please check your connection and retry.')
+      }
+      throw new Error('AI model failed to load. Please retry.')
+    })
   }
   return sessionPromise
 }

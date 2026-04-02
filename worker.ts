@@ -17,6 +17,53 @@ export default {
     ctx: { waitUntil(promise: Promise<unknown>): void }
   ) {
     const url = new URL(request.url)
+
+    if (url.pathname === '/models/lineart.onnx') {
+      if (request.method === 'OPTIONS') {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            'access-control-allow-origin': '*',
+            'access-control-allow-methods': 'GET,HEAD,OPTIONS',
+            'access-control-allow-headers': 'content-type',
+            'access-control-max-age': '86400',
+          },
+        })
+      }
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        return new Response('Method Not Allowed', {
+          status: 405,
+          headers: {
+            'access-control-allow-origin': '*',
+            'access-control-allow-methods': 'GET,HEAD,OPTIONS',
+          },
+        })
+      }
+
+      const upstreamUrl =
+        'https://huggingface.co/rocca/informative-drawings-line-art-onnx/resolve/main/model.onnx?download=true'
+
+      const upstream = await fetch(upstreamUrl, {
+        cf: { cacheEverything: true, cacheTtl: 31536000 },
+      })
+
+      const contentType = upstream.headers.get('content-type') || 'application/octet-stream'
+      const contentLength = upstream.headers.get('content-length')
+      const etag = upstream.headers.get('etag')
+
+      return new Response(upstream.body, {
+        status: upstream.status,
+        headers: {
+          'content-type': contentType,
+          ...(contentLength ? { 'content-length': contentLength } : {}),
+          ...(etag ? { etag } : {}),
+          'cache-control': 'public, max-age=31536000, immutable',
+          'access-control-allow-origin': '*',
+          'access-control-allow-methods': 'GET,HEAD,OPTIONS',
+        },
+      })
+    }
+
     if (url.pathname === '/api/edit-image') {
       if (request.method === 'OPTIONS') {
         return new Response(null, {
@@ -80,13 +127,7 @@ export default {
         })
       }
 
-      const key = env.DEEPAI_API_KEY
-      if (!key) {
-        return new Response(JSON.stringify({ error: 'Missing DEEPAI_API_KEY' }), {
-          status: 503,
-          headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
-        })
-      }
+      const key = env.DEEPAI_API_KEY || 'quickstart-QUdJIGlzIGNvbWluZy4uLi4K'
 
       const upstream = await fetch('https://api.deepai.org/api/colorizer', {
         method: 'POST',
