@@ -905,6 +905,9 @@ function PhotoToColoringSection() {
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [isConverting, setIsConverting] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [coloredUrl, setColoredUrl] = useState<string | null>(null)
+  const [isAutoColorizing, setIsAutoColorizing] = useState(false)
+  const [previewMode, setPreviewMode] = useState<'lineart' | 'colored'>('lineart')
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false)
   const [modelStatus, setModelStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
@@ -935,6 +938,12 @@ function PhotoToColoringSection() {
     };
   }, [resultUrl]);
 
+  useEffect(() => {
+    return () => {
+      if (coloredUrl?.startsWith('blob:')) URL.revokeObjectURL(coloredUrl)
+    }
+  }, [coloredUrl])
+
   const handleConvert = useCallback(async (fileOverride?: File) => {
     const file = fileOverride ?? photoFile
     if (!file) {
@@ -948,7 +957,13 @@ function PhotoToColoringSection() {
 
     setError(null)
     setIsConverting(true)
+    setIsAutoColorizing(false)
     setCompare(50)
+    setPreviewMode('lineart')
+    setColoredUrl((prev) => {
+      if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+      return null
+    })
 
     try {
       if (modelStatus !== 'ready') {
@@ -969,6 +984,24 @@ function PhotoToColoringSection() {
       setIsConverting(false)
     }
   }, [photoFile, modelStatus]);
+
+  const handleAutoColorize = useCallback(async () => {
+    if (!resultUrl) return
+    setError(null)
+    setIsAutoColorizing(true)
+    try {
+      const blob = await fetch(resultUrl).then((r) => r.blob())
+      const file = new File([blob], 'coloring-page.png', { type: blob.type || 'image/png' })
+      const outUrl = await colorizeWithDeepAI(file)
+      setColoredUrl(outUrl)
+      setPreviewMode('colored')
+      await preloadImageWithRetry(outUrl, 120_000, 1)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Colorization failed')
+    } finally {
+      setIsAutoColorizing(false)
+    }
+  }, [resultUrl])
 
   return (
     <section id="photo-feature" className="py-20 bg-white">
@@ -1073,6 +1106,14 @@ function PhotoToColoringSection() {
                     Color This Online
                   </Button>
                   <Button
+                    className="w-full bg-gradient-to-r from-emerald-500 to-indigo-600 hover:from-emerald-600 hover:to-indigo-700 text-white"
+                    onClick={() => void handleAutoColorize()}
+                    disabled={isAutoColorizing}
+                  >
+                    <Palette className="w-4 h-4 mr-2" />
+                    {isAutoColorizing ? 'Colorizing...' : 'Auto Colorize'}
+                  </Button>
+                  <Button
                     className="w-full bg-gray-900 text-white hover:bg-gray-800"
                     onClick={() => {
                       const a = document.createElement('a')
@@ -1119,6 +1160,20 @@ function PhotoToColoringSection() {
                   >
                     Print
                   </Button>
+                  {coloredUrl && (
+                    <Button
+                      className="w-full bg-gray-900 text-white hover:bg-gray-800"
+                      onClick={() => {
+                        const a = document.createElement('a')
+                        a.href = coloredUrl
+                        a.download = 'inkbloom-colored.png'
+                        a.click()
+                      }}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Colored PNG
+                    </Button>
+                  )}
                 </div>
               )}
 
@@ -1143,20 +1198,62 @@ function PhotoToColoringSection() {
             <div className="relative">
               {photoPreviewUrl && resultUrl ? (
                 <div className="bg-white rounded-3xl shadow-2xl p-6">
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <button
+                      onClick={() => setPreviewMode('lineart')}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                        previewMode === 'lineart'
+                          ? 'bg-gradient-to-r from-indigo-600 to-emerald-500 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Coloring Page
+                    </button>
+                    <button
+                      onClick={() => setPreviewMode('colored')}
+                      disabled={!coloredUrl}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                        previewMode === 'colored'
+                          ? 'bg-gradient-to-r from-emerald-500 to-indigo-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      } ${!coloredUrl ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      Colored Preview
+                    </button>
+                  </div>
                   <div className="relative rounded-2xl overflow-hidden bg-gray-50">
                     <div className="relative w-full h-[420px]">
-                      <img
-                        src={resultUrl}
-                        alt="After"
-                        onError={() => setError('Conversion failed, please try again')}
-                        className="absolute inset-0 w-full h-full object-contain"
-                      />
-                      <img
-                        src={photoPreviewUrl}
-                        alt="Before"
-                        className="absolute inset-0 w-full h-full object-contain"
-                        style={{ clipPath: `inset(0 ${100 - compare}% 0 0)` }}
-                      />
+                      {previewMode === 'lineart' ? (
+                        <>
+                          <img
+                            src={resultUrl}
+                            alt="After"
+                            onError={() => setError('Conversion failed, please try again')}
+                            className="absolute inset-0 w-full h-full object-contain"
+                          />
+                          <img
+                            src={photoPreviewUrl}
+                            alt="Before"
+                            className="absolute inset-0 w-full h-full object-contain"
+                            style={{ clipPath: `inset(0 ${100 - compare}% 0 0)` }}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <img
+                            src={coloredUrl ?? resultUrl}
+                            alt="Colored"
+                            onError={() => setError('Colorization failed, please try again')}
+                            className="absolute inset-0 w-full h-full object-contain"
+                          />
+                          <img
+                            src={resultUrl}
+                            alt="Line art"
+                            className="absolute inset-0 w-full h-full object-contain"
+                            style={{ clipPath: `inset(0 ${100 - compare}% 0 0)` }}
+                          />
+                        </>
+                      )}
                       <div className="absolute inset-y-0" style={{ left: `${compare}%` }}>
                         <div className="w-0.5 h-full bg-gray-900/60" />
                       </div>
@@ -1172,8 +1269,17 @@ function PhotoToColoringSection() {
                       className="w-full"
                     />
                     <div className="flex justify-between text-xs text-gray-500 mt-2">
-                      <span>Original</span>
-                      <span>Coloring Page</span>
+                      {previewMode === 'lineart' ? (
+                        <>
+                          <span>Original</span>
+                          <span>Coloring Page</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Coloring Page</span>
+                          <span>Colored</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
