@@ -12,22 +12,10 @@ export default {
     env: {
       __STATIC_CONTENT: AssetNamespace
       POLLINATIONS_API_KEY?: string
-      DEEPAI_API_KEY?: string
     },
     ctx: { waitUntil(promise: Promise<unknown>): void }
   ) {
     const url = new URL(request.url)
-
-    if (url.pathname === '/api/config') {
-      return new Response(JSON.stringify({ deepaiColorizeEnabled: Boolean(env.DEEPAI_API_KEY) }), {
-        status: 200,
-        headers: {
-          'content-type': 'application/json',
-          'access-control-allow-origin': '*',
-          'cache-control': 'no-store',
-        },
-      })
-    }
 
     if (url.pathname === '/models/lineart.onnx') {
       if (request.method === 'OPTIONS') {
@@ -114,58 +102,6 @@ export default {
           'content-type': contentType,
           'access-control-allow-origin': '*',
           'access-control-allow-methods': 'GET,HEAD,OPTIONS',
-          'cache-control': 'no-store',
-        },
-      })
-    }
-
-    if (url.pathname === '/api/deepai-colorize') {
-      if (request.method === 'OPTIONS') {
-        return new Response(null, {
-          status: 204,
-          headers: {
-            'access-control-allow-origin': '*',
-            'access-control-allow-methods': 'POST,OPTIONS',
-            'access-control-allow-headers': 'content-type',
-            'access-control-max-age': '86400',
-          },
-        })
-      }
-      if (request.method !== 'POST') {
-        return new Response('Method Not Allowed', {
-          status: 405,
-          headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST,OPTIONS' },
-        })
-      }
-
-      const key = env.DEEPAI_API_KEY
-      if (!key) {
-        return new Response(JSON.stringify({ error: 'Auto Colorize is temporarily unavailable.' }), {
-          status: 503,
-          headers: {
-            'content-type': 'application/json',
-            'access-control-allow-origin': '*',
-            'cache-control': 'no-store',
-          },
-        })
-      }
-
-      const upstream = await fetch('https://api.deepai.org/api/colorizer', {
-        method: 'POST',
-        headers: {
-          'Api-Key': key,
-          'api-key': key,
-          'content-type': request.headers.get('content-type') || 'application/octet-stream',
-        },
-        body: request.body,
-      })
-
-      const contentType = upstream.headers.get('content-type') || 'application/json'
-      return new Response(upstream.body, {
-        status: upstream.status,
-        headers: {
-          'content-type': contentType,
-          'access-control-allow-origin': '*',
           'cache-control': 'no-store',
         },
       })
