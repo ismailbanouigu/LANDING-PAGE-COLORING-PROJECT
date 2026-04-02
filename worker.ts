@@ -18,6 +18,17 @@ export default {
   ) {
     const url = new URL(request.url)
 
+    if (url.pathname === '/api/config') {
+      return new Response(JSON.stringify({ deepaiColorizeEnabled: Boolean(env.DEEPAI_API_KEY) }), {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          'access-control-allow-origin': '*',
+          'cache-control': 'no-store',
+        },
+      })
+    }
+
     if (url.pathname === '/models/lineart.onnx') {
       if (request.method === 'OPTIONS') {
         return new Response(null, {
@@ -127,7 +138,17 @@ export default {
         })
       }
 
-      const key = env.DEEPAI_API_KEY || 'quickstart-QUdJIGlzIGNvbWluZy4uLi4K'
+      const key = env.DEEPAI_API_KEY
+      if (!key) {
+        return new Response(JSON.stringify({ error: 'Auto Colorize is temporarily unavailable.' }), {
+          status: 503,
+          headers: {
+            'content-type': 'application/json',
+            'access-control-allow-origin': '*',
+            'cache-control': 'no-store',
+          },
+        })
+      }
 
       const upstream = await fetch('https://api.deepai.org/api/colorizer', {
         method: 'POST',

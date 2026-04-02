@@ -908,6 +908,7 @@ function PhotoToColoringSection() {
   const [coloredUrl, setColoredUrl] = useState<string | null>(null)
   const [isAutoColorizing, setIsAutoColorizing] = useState(false)
   const [previewMode, setPreviewMode] = useState<'lineart' | 'colored'>('lineart')
+  const [autoColorizeEnabled, setAutoColorizeEnabled] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false)
   const [modelStatus, setModelStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
@@ -931,6 +932,30 @@ function PhotoToColoringSection() {
 
     return () => URL.revokeObjectURL(url);
   }, [photoFile]);
+
+  useEffect(() => {
+    let alive = true
+    fetch('/api/config')
+      .then((r) => r.json())
+      .then((json: unknown) => {
+        if (!alive) return
+        const enabled =
+          json &&
+          typeof json === 'object' &&
+          json !== null &&
+          typeof (json as Record<string, unknown>).deepaiColorizeEnabled === 'boolean'
+            ? Boolean((json as Record<string, unknown>).deepaiColorizeEnabled)
+            : false
+        setAutoColorizeEnabled(enabled)
+      })
+      .catch(() => {
+        if (!alive) return
+        setAutoColorizeEnabled(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -987,6 +1012,10 @@ function PhotoToColoringSection() {
 
   const handleAutoColorize = useCallback(async () => {
     if (!resultUrl) return
+    if (!autoColorizeEnabled) {
+      setError('Auto Colorize is temporarily unavailable.')
+      return
+    }
     setError(null)
     setIsAutoColorizing(true)
     try {
@@ -1001,7 +1030,7 @@ function PhotoToColoringSection() {
     } finally {
       setIsAutoColorizing(false)
     }
-  }, [resultUrl])
+  }, [resultUrl, autoColorizeEnabled])
 
   return (
     <section id="photo-feature" className="py-20 bg-white">
@@ -1108,11 +1137,16 @@ function PhotoToColoringSection() {
                   <Button
                     className="w-full bg-gradient-to-r from-emerald-500 to-indigo-600 hover:from-emerald-600 hover:to-indigo-700 text-white"
                     onClick={() => void handleAutoColorize()}
-                    disabled={isAutoColorizing}
+                    disabled={isAutoColorizing || !autoColorizeEnabled}
                   >
                     <Palette className="w-4 h-4 mr-2" />
                     {isAutoColorizing ? 'Colorizing...' : 'Auto Colorize'}
                   </Button>
+                  {!autoColorizeEnabled && (
+                    <div className="sm:col-span-2 text-sm text-gray-500">
+                      Auto Colorize is temporarily unavailable.
+                    </div>
+                  )}
                   <Button
                     className="w-full bg-gray-900 text-white hover:bg-gray-800"
                     onClick={() => {
