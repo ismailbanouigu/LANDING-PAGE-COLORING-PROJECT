@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import inkbloomLogo from '@/assets/inkbloom-logo.svg';
-import { convertFileToLineArtDataUrl, getLineArtSession } from '@/lib/lineArt';
+import { convertFileToLineArtDataUrl, getLineArtSession, resetLineArtSession } from '@/lib/lineArt';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
@@ -1019,27 +1019,16 @@ function PhotoToColoringSection() {
     setCompare(50)
 
     try {
-      // Try backend first (Cloud Run) via Worker proxy
-      setProgressText('Uploading...')
-      const fd = new FormData()
-      fd.append('image', file)
-      const resp = await fetch('/api/convert', { method: 'POST', body: fd })
-      if (resp.ok && (resp.headers.get('content-type') || '').includes('image')) {
-        const blob = await resp.blob()
-        const url = URL.createObjectURL(blob)
-        setResultUrl(url)
-      } else {
-        // Fallback to ONNX in browser
-        if (modelStatus !== 'ready') {
-          setModelStatus('loading')
-          setProgressText('Loading AI model...')
-          await getLineArtSession()
-          setModelStatus('ready')
-        }
-        setProgressText('Converting your photo...')
-        const dataUrl = await convertFileToLineArtDataUrl(file)
-        setResultUrl(dataUrl)
+      if (modelStatus !== 'ready') {
+        setModelStatus('loading')
+        setProgressText('Loading AI model... (first time may take ~17MB)')
+        await getLineArtSession()
+        setModelStatus('ready')
       }
+
+      setProgressText('Converting your photo...')
+      const dataUrl = await convertFileToLineArtDataUrl(file)
+      setResultUrl(dataUrl)
     } catch (err) {
       setModelStatus((prev) => (prev === 'loading' ? 'error' : prev))
       setError(err instanceof Error ? err.message : 'Conversion failed')
@@ -1202,6 +1191,19 @@ function PhotoToColoringSection() {
               )}
 
               {error && <div className="text-sm text-red-600">{error}</div>}
+              {modelStatus === 'error' && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    resetLineArtSession()
+                    setModelStatus('idle')
+                    setError(null)
+                  }}
+                >
+                  Retry loading AI model
+                </Button>
+              )}
             </div>
           </div>
           

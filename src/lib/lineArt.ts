@@ -67,6 +67,10 @@ export async function getLineArtSession() {
   return sessionPromise
 }
 
+export function resetLineArtSession() {
+  sessionPromise = null
+}
+
 function clamp01(n: number) {
   if (Number.isNaN(n)) return 0
   if (n < 0) return 0

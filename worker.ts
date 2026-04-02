@@ -12,7 +12,6 @@ export default {
     env: {
       __STATIC_CONTENT: AssetNamespace
       POLLINATIONS_API_KEY?: string
-      LINEART_API_URL?: string
       DEEPAI_API_KEY?: string
     },
     ctx: { waitUntil(promise: Promise<unknown>): void }
@@ -103,41 +102,6 @@ export default {
         status: upstream.status,
         headers: {
           'content-type': contentType,
-          'access-control-allow-origin': '*',
-          'cache-control': 'no-store',
-        },
-      })
-    }
-
-    if (url.pathname === '/api/convert') {
-      if (request.method === 'OPTIONS') {
-        return new Response(null, {
-          status: 204,
-          headers: {
-            'access-control-allow-origin': '*',
-            'access-control-allow-methods': 'POST,OPTIONS',
-            'access-control-allow-headers': 'content-type',
-            'access-control-max-age': '86400',
-          },
-        })
-      }
-      const base = env.LINEART_API_URL
-      if (!base) {
-        return new Response(JSON.stringify({ error: 'LINEART_API_URL not set' }), {
-          status: 503,
-          headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
-        })
-      }
-      const target = base.endsWith('/') ? base + 'api/convert' : base + '/api/convert'
-      const upstream = await fetch(target, {
-        method: 'POST',
-        headers: { 'content-type': request.headers.get('content-type') || 'application/octet-stream' },
-        body: request.body,
-      })
-      return new Response(upstream.body, {
-        status: upstream.status,
-        headers: {
-          'content-type': upstream.headers.get('content-type') || 'image/png',
           'access-control-allow-origin': '*',
           'cache-control': 'no-store',
         },
