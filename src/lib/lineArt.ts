@@ -3,6 +3,8 @@ const LINE_ART_MODEL_URL = '/models/lineart.onnx'
 type InvertMode = 'auto' | 'on' | 'off'
 type ConvertOptions = {
   invert?: InvertMode
+  binarize?: boolean
+  thicken?: boolean
 }
 
 type OrtTensor = {
@@ -160,8 +162,74 @@ export async function convertImageToLineArtDataUrl(image: CanvasImageSource, opt
   const avg = sum / expected
   const shouldInvert = invertMode === 'on' || (invertMode === 'auto' && avg < 128)
 
+  const normalized = new Uint8ClampedArray(expected)
+  for (let i = 0; i < expected; i++) normalized[i] = shouldInvert ? 255 - grays[i] : grays[i]
+
+  const shouldBinarize = options?.binarize ?? true
+  const shouldThicken = options?.thicken ?? true
+
+  const computeOtsuThreshold = (values: Uint8ClampedArray) => {
+    const hist = new Uint32Array(256)
+    for (let i = 0; i < values.length; i++) hist[values[i]]++
+    const total = values.length
+    let sumAll = 0
+    for (let t = 0; t < 256; t++) sumAll += t * hist[t]
+    let sumB = 0
+    let wB = 0
+    let maxVar = -1
+    let threshold = 128
+    for (let t = 0; t < 256; t++) {
+      wB += hist[t]
+      if (wB === 0) continue
+      const wF = total - wB
+      if (wF === 0) break
+      sumB += t * hist[t]
+      const mB = sumB / wB
+      const mF = (sumAll - sumB) / wF
+      const between = wB * wF * (mB - mF) * (mB - mF)
+      if (between > maxVar) {
+        maxVar = between
+        threshold = t
+      }
+    }
+    return threshold
+  }
+
+  const binary = (() => {
+    if (!shouldBinarize) return normalized
+    const t = Math.max(0, Math.min(255, computeOtsuThreshold(normalized) + 8))
+    const outBinary = new Uint8ClampedArray(expected)
+    for (let i = 0; i < expected; i++) outBinary[i] = normalized[i] < t ? 0 : 255
+    return outBinary
+  })()
+
+  const thickened = (() => {
+    if (!shouldThicken) return binary
+    const outThick = new Uint8ClampedArray(expected)
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        let min = 255
+        for (let dy = -1; dy <= 1; dy++) {
+          const ny = y + dy
+          if (ny < 0 || ny >= size) continue
+          const row = ny * size
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx
+            if (nx < 0 || nx >= size) continue
+            const v = binary[row + nx]
+            if (v < min) min = v
+            if (min === 0) break
+          }
+          if (min === 0) break
+        }
+        outThick[y * size + x] = min
+      }
+    }
+    return outThick
+  })()
+
   for (let i = 0; i < expected; i++) {
-    const gray = shouldInvert ? 255 - grays[i] : grays[i]
+    const gray = thickened[i]
     outImageData.data[i * 4] = gray
     outImageData.data[i * 4 + 1] = gray
     outImageData.data[i * 4 + 2] = gray
