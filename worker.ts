@@ -11,7 +11,6 @@ export default {
     request: Request,
     env: {
       __STATIC_CONTENT: AssetNamespace
-      POLLINATIONS_API_KEY?: string
     },
     ctx: { waitUntil(promise: Promise<unknown>): void }
   ) {
@@ -59,50 +58,6 @@ export default {
           'cache-control': 'public, max-age=31536000, immutable',
           'access-control-allow-origin': '*',
           'access-control-allow-methods': 'GET,HEAD,OPTIONS',
-        },
-      })
-    }
-
-    if (url.pathname === '/api/edit-image') {
-      if (request.method === 'OPTIONS') {
-        return new Response(null, {
-          status: 204,
-          headers: {
-            'access-control-allow-origin': '*',
-            'access-control-allow-methods': 'GET,HEAD,OPTIONS',
-            'access-control-allow-headers': 'content-type',
-            'access-control-max-age': '86400',
-          },
-        })
-      }
-      const prompt = url.searchParams.get('prompt') || ''
-      const model = url.searchParams.get('model') || 'kontext'
-      const image = url.searchParams.get('image') || ''
-      const key = env.POLLINATIONS_API_KEY
-      if (!key) {
-        return new Response(JSON.stringify({ error: 'Missing POLLINATIONS_API_KEY' }), {
-          status: 500,
-          headers: {
-            'content-type': 'application/json',
-            'access-control-allow-origin': '*',
-            'access-control-allow-methods': 'GET,HEAD,OPTIONS',
-          },
-        })
-      }
-      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
-        prompt
-      )}?model=${encodeURIComponent(model)}&nologo=true&image=${encodeURIComponent(image)}&key=${encodeURIComponent(
-        key
-      )}`
-      const resp = await fetch(pollinationsUrl)
-      const contentType = resp.headers.get('content-type') || 'image/jpeg'
-      return new Response(resp.body, {
-        status: resp.status,
-        headers: {
-          'content-type': contentType,
-          'access-control-allow-origin': '*',
-          'access-control-allow-methods': 'GET,HEAD,OPTIONS',
-          'cache-control': 'no-store',
         },
       })
     }

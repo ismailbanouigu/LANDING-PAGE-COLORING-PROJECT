@@ -28,7 +28,6 @@ import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { addDoc, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '@/lib/firebase';
 
-const POLLINATIONS_UPLOAD_URL = 'https://media.pollinations.ai/upload'
 const POLLINATIONS_IMAGE_BASE = 'https://image.pollinations.ai/prompt'
 
 function scrollToSection(sectionId: string) {
@@ -74,26 +73,6 @@ function buildPollinationsImageUrl(
   return `${POLLINATIONS_IMAGE_BASE}/${encodeURIComponent(prompt)}${qs ? `?${qs}` : ''}`
 }
 
-async function uploadToPollinations(file: File, signal?: AbortSignal) {
-  const form = new FormData()
-  form.append('file', file)
-  const res = await fetch(POLLINATIONS_UPLOAD_URL, { method: 'POST', body: form, signal })
-  const text = await res.text()
-  if (!res.ok) throw new Error(text || 'Upload failed')
-  let json: unknown
-  try {
-    json = JSON.parse(text)
-  } catch {
-    throw new Error('Upload returned invalid JSON')
-  }
-  if (!json || typeof json !== 'object') throw new Error('Upload returned invalid JSON')
-  const record = json as Record<string, unknown>
-  const urlValue =
-    typeof record.url === 'string' ? record.url : typeof record.hash_url === 'string' ? record.hash_url : null
-  if (!urlValue) throw new Error('Upload response missing url')
-  return urlValue
-}
-
 function preloadImage(url: string, timeoutMs = 120_000) {
   return new Promise<void>((resolve, reject) => {
     const img = new Image()
@@ -133,9 +112,10 @@ type ManualColoringDialogProps = {
   onOpenChange: (open: boolean) => void
   imageUrl: string | null
   title: string
+  onExport?: (pngUrl: string) => void
 }
 
-function ManualColoringDialog({ open, onOpenChange, imageUrl, title }: ManualColoringDialogProps) {
+function ManualColoringDialog({ open, onOpenChange, imageUrl, title, onExport }: ManualColoringDialogProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
   const [brushSize, setBrushSize] = useState(12)
@@ -367,12 +347,13 @@ function ManualColoringDialog({ open, onOpenChange, imageUrl, title }: ManualCol
     const blob = await new Promise<Blob | null>((resolve) => out.toBlob(resolve, 'image/png'))
     if (!blob) throw new Error('Export failed')
     const url = URL.createObjectURL(blob)
+    onExport?.(url)
     const a = document.createElement('a')
     a.href = url
     a.download = 'inkbloom-colored.png'
     a.click()
-    window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
-  }, [imageUrl])
+    if (!onExport) window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
+  }, [imageUrl, onExport])
 
   const printMerged = useCallback(() => {
     if (!imageUrl) return
@@ -527,6 +508,354 @@ function ManualColoringDialog({ open, onOpenChange, imageUrl, title }: ManualCol
               <span className="text-sm text-gray-600 w-8 text-right">{tolerance}</span>
             </div>
           )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+type BackgroundRemovalDialogProps = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  imageUrl: string | null
+  title: string
+  onExport?: (pngUrl: string) => void
+}
+
+function BackgroundRemovalDialog({ open, onOpenChange, imageUrl, title, onExport }: BackgroundRemovalDialogProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const imgRef = useRef<HTMLImageElement | null>(null)
+  const [tool, setTool] = useState<'wand' | 'erase'>('wand')
+  const [tolerance, setTolerance] = useState(24)
+  const [brushSize, setBrushSize] = useState(28)
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const isErasingRef = useRef(false)
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null)
+  const historyRef = useRef<ImageData[]>([])
+  const historyIndexRef = useRef(-1)
+  const originalRef = useRef<ImageData | null>(null)
+
+  const resizeCanvasToImage = useCallback(() => {
+    const canvas = canvasRef.current
+    const img = imgRef.current
+    if (!canvas || !img) return
+    const w = img.naturalWidth || 0
+    const h = img.naturalHeight || 0
+    if (!w || !h) return
+    canvas.width = w
+    canvas.height = h
+    canvas.style.width = '100%'
+    canvas.style.height = 'auto'
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, w, h)
+    ctx.drawImage(img, 0, 0, w, h)
+    originalRef.current = ctx.getImageData(0, 0, w, h)
+    historyRef.current = []
+    historyIndexRef.current = -1
+    setCanUndo(false)
+    setCanRedo(false)
+  }, [])
+
+  const pushSnapshot = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const next = historyRef.current.slice(0, historyIndexRef.current + 1)
+    next.push(snapshot)
+    historyRef.current = next.slice(-25)
+    historyIndexRef.current = historyRef.current.length - 1
+    setCanUndo(historyIndexRef.current >= 0)
+    setCanRedo(false)
+  }, [])
+
+  const applySnapshot = useCallback((index: number) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const snapshot = historyRef.current[index]
+    if (!snapshot) return
+    ctx.putImageData(snapshot, 0, 0)
+    historyIndexRef.current = index
+    setCanUndo(index >= 0)
+    setCanRedo(index < historyRef.current.length - 1)
+  }, [])
+
+  const handleUndo = useCallback(() => {
+    const idx = historyIndexRef.current - 1
+    if (idx < 0) {
+      const canvas = canvasRef.current
+      const ctx = canvas?.getContext('2d')
+      const original = originalRef.current
+      if (!canvas || !ctx || !original) return
+      ctx.putImageData(original, 0, 0)
+      historyIndexRef.current = -1
+      setCanUndo(false)
+      setCanRedo(historyRef.current.length > 0)
+      return
+    }
+    applySnapshot(idx)
+  }, [applySnapshot])
+
+  const handleRedo = useCallback(() => {
+    const idx = historyIndexRef.current + 1
+    if (idx >= historyRef.current.length) return
+    applySnapshot(idx)
+  }, [applySnapshot])
+
+  const handleReset = useCallback(() => {
+    const canvas = canvasRef.current
+    const ctx = canvas?.getContext('2d')
+    const original = originalRef.current
+    if (!canvas || !ctx || !original) return
+    ctx.putImageData(original, 0, 0)
+    historyRef.current = []
+    historyIndexRef.current = -1
+    setCanUndo(false)
+    setCanRedo(false)
+  }, [])
+
+  const getCanvasPoint = useCallback((e: PointerEvent | React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+    const rect = canvas.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * canvas.width
+    const y = ((e.clientY - rect.top) / rect.height) * canvas.height
+    return { x, y }
+  }, [])
+
+  const floodClear = useCallback(
+    (startX: number, startY: number) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      const w = canvas.width
+      const h = canvas.height
+      const img = ctx.getImageData(0, 0, w, h)
+      const d = img.data
+      const x0 = Math.max(0, Math.min(w - 1, Math.floor(startX)))
+      const y0 = Math.max(0, Math.min(h - 1, Math.floor(startY)))
+      const idx0 = (y0 * w + x0) * 4
+      const r0 = d[idx0]
+      const g0 = d[idx0 + 1]
+      const b0 = d[idx0 + 2]
+      const a0 = d[idx0 + 3]
+      if (a0 === 0) return
+
+      const tol = Math.max(0, Math.min(128, tolerance))
+      const visited = new Uint8Array(w * h)
+      const stack: number[] = []
+      stack.push(x0, y0)
+
+      const dist = (r: number, g: number, b: number, a: number) => {
+        if (a === 0) return 0
+        return Math.max(Math.abs(r - r0), Math.abs(g - g0), Math.abs(b - b0))
+      }
+
+      while (stack.length) {
+        const y = stack.pop() as number
+        const x = stack.pop() as number
+        if (x < 0 || x >= w || y < 0 || y >= h) continue
+        const pIndex = y * w + x
+        if (visited[pIndex]) continue
+        visited[pIndex] = 1
+        const i = pIndex * 4
+        const r = d[i]
+        const g = d[i + 1]
+        const b = d[i + 2]
+        const a = d[i + 3]
+        if (dist(r, g, b, a) > tol) continue
+        d[i + 3] = 0
+        stack.push(x + 1, y)
+        stack.push(x - 1, y)
+        stack.push(x, y + 1)
+        stack.push(x, y - 1)
+      }
+
+      ctx.putImageData(img, 0, 0)
+      pushSnapshot()
+    },
+    [tolerance, pushSnapshot]
+  )
+
+  const eraseLine = useCallback(
+    (from: { x: number; y: number }, to: { x: number; y: number }) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      ctx.save()
+      ctx.globalCompositeOperation = 'destination-out'
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.strokeStyle = 'rgba(0,0,0,1)'
+      ctx.lineWidth = brushSize
+      ctx.beginPath()
+      ctx.moveTo(from.x, from.y)
+      ctx.lineTo(to.x, to.y)
+      ctx.stroke()
+      ctx.restore()
+    },
+    [brushSize]
+  )
+
+  const exportPng = useCallback(async () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+    if (!blob) throw new Error('Export failed')
+    const url = URL.createObjectURL(blob)
+    onExport?.(url)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'inkbloom-no-bg.png'
+    a.click()
+    if (!onExport) window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
+  }, [onExport])
+
+  const printPng = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const dataUrl = canvas.toDataURL('image/png')
+    const w = window.open('', '_blank', 'noopener,noreferrer')
+    if (!w) return
+    w.document.write(
+      `<html><head><title>Print</title><style>body{margin:0}img{width:100%;height:auto;display:block}</style></head><body><img src="${dataUrl}"/></body></html>`
+    )
+    w.document.close()
+    w.focus()
+    w.print()
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    queueMicrotask(() => setError(null))
+    window.setTimeout(() => resizeCanvasToImage(), 0)
+  }, [open, resizeCanvasToImage])
+
+  if (!imageUrl) return null
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-lg overflow-hidden border border-gray-200 bg-white">
+              <button
+                onClick={() => setTool('wand')}
+                className={`px-3 py-2 text-sm ${tool === 'wand' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700'}`}
+              >
+                Wand
+              </button>
+              <button
+                onClick={() => setTool('erase')}
+                className={`px-3 py-2 text-sm ${tool === 'erase' ? 'bg-gray-900 text-white' : 'bg-white text-gray-700'}`}
+              >
+                Erase
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Tolerance</span>
+              <input
+                type="range"
+                min={0}
+                max={80}
+                value={tolerance}
+                onChange={(e) => setTolerance(Number(e.target.value))}
+              />
+              <span className="text-sm text-gray-600 w-8 text-right">{tolerance}</span>
+            </div>
+            {tool === 'erase' && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Brush</span>
+                <input
+                  type="range"
+                  min={6}
+                  max={80}
+                  value={brushSize}
+                  onChange={(e) => setBrushSize(Number(e.target.value))}
+                />
+                <span className="text-sm text-gray-600 w-10 text-right">{brushSize}px</span>
+              </div>
+            )}
+            <Button variant="outline" onClick={handleUndo} disabled={!canUndo}>
+              <Undo className="w-4 h-4 mr-2" />
+              Undo
+            </Button>
+            <Button variant="outline" onClick={handleRedo} disabled={!canRedo}>
+              <Redo className="w-4 h-4 mr-2" />
+              Redo
+            </Button>
+            <Button variant="outline" onClick={handleReset}>
+              <Eraser className="w-4 h-4 mr-2" />
+              Reset
+            </Button>
+            <div className="flex-1" />
+            <Button className="bg-gray-900 text-white hover:bg-gray-800" onClick={() => void exportPng()}>
+              <Download className="w-4 h-4 mr-2" />
+              Download PNG
+            </Button>
+            <Button variant="outline" onClick={printPng}>
+              Print
+            </Button>
+          </div>
+          {error && <div className="text-sm text-red-600">{error}</div>}
+          <div className="rounded-2xl border border-gray-200 bg-white p-3 overflow-hidden">
+            <div className="relative">
+              <img
+                ref={imgRef}
+                src={imageUrl}
+                alt="Original"
+                className="w-full h-auto block opacity-0 pointer-events-none"
+                onLoad={() => resizeCanvasToImage()}
+                onError={() => setError('Failed to load image. Please try again.')}
+              />
+              <canvas
+                ref={canvasRef}
+                className="w-full h-auto block touch-none"
+                onPointerDown={(e) => {
+                  const p = getCanvasPoint(e)
+                  if (!p) return
+                  setError(null)
+                  if (tool === 'wand') {
+                    floodClear(p.x, p.y)
+                    return
+                  }
+                  isErasingRef.current = true
+                  lastPointRef.current = p
+                  ;(e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId)
+                }}
+                onPointerMove={(e) => {
+                  if (!isErasingRef.current) return
+                  const from = lastPointRef.current
+                  const to = getCanvasPoint(e)
+                  if (!from || !to) return
+                  eraseLine(from, to)
+                  lastPointRef.current = to
+                }}
+                onPointerUp={() => {
+                  if (!isErasingRef.current) return
+                  isErasingRef.current = false
+                  lastPointRef.current = null
+                  pushSnapshot()
+                }}
+                onPointerCancel={() => {
+                  isErasingRef.current = false
+                  lastPointRef.current = null
+                }}
+              />
+            </div>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -2064,73 +2393,40 @@ function ColoringBookSection() {
 }
 
 function ImageEditorSection() {
-  type EditMode = 'enhance' | 'background' | 'style' | 'custom'
-  type StyleOption = 'Anime' | 'Oil Painting' | 'Watercolor' | 'Pixel Art' | 'Sketch' | 'Pop Art'
-  type ModelOption = 'kontext' | 'gptimage'
-  type HistoryItem = {
-    id: string
-    createdAt: number
-    mode: EditMode
-    model: ModelOption
-    seed: string
-    uploadedUrl: string
-    prompt: string
-    label: string
-  }
+  type EditMode = 'colorize' | 'enhance' | 'background' | 'style' | 'custom'
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null)
-  const [mode, setMode] = useState<EditMode>('enhance')
-  const [model, setModel] = useState<ModelOption>('kontext')
-  const [style, setStyle] = useState<StyleOption>('Anime')
-  const [customPrompt, setCustomPrompt] = useState('')
+  const [mode, setMode] = useState<EditMode>('colorize')
   const [isWorking, setIsWorking] = useState(false)
   const [progressText, setProgressText] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [compare, setCompare] = useState(50)
-  const [history, setHistory] = useState<HistoryItem[]>(() => {
-    try {
-      const raw = localStorage.getItem('INKBLOOM_EDIT_HISTORY')
-      if (!raw) return []
-      const data = JSON.parse(raw) as unknown
-      if (!Array.isArray(data)) return []
-      return data
-        .filter((x) => x && typeof x === 'object')
-        .slice(0, 10) as HistoryItem[]
-    } catch {
-      return []
-    }
-  })
+  const [isColoringOpen, setIsColoringOpen] = useState(false)
+  const [isBgOpen, setIsBgOpen] = useState(false)
 
   useEffect(() => {
     if (!file) {
+      queueMicrotask(() =>
+        setPreviewUrl((prev) => {
+          if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+          return null
+        })
+      )
+      return
+    }
+    const url = URL.createObjectURL(file)
+    queueMicrotask(() =>
       setPreviewUrl((prev) => {
         if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
-        return null
+        return url
       })
-      setUploadedUrl(null)
-      return
-    }
-
-    const url = URL.createObjectURL(file)
-    setPreviewUrl((prev) => {
-      if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
-      return url
-    })
+    )
     return () => URL.revokeObjectURL(url)
   }, [file])
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('INKBLOOM_EDIT_HISTORY', JSON.stringify(history.slice(0, 10)))
-    } catch {
-      return
-    }
-  }, [history])
 
   useEffect(() => {
     return () => {
@@ -2139,8 +2435,9 @@ function ImageEditorSection() {
   }, [resultUrl])
 
   const handleFileSelect = (selected: File) => {
-    if (!selected.type.startsWith('image/')) {
-      setError('Please upload an image (JPG, PNG, WEBP).')
+    const allowed = new Set(['image/png', 'image/jpeg', 'image/webp'])
+    if (!allowed.has(selected.type)) {
+      setError('Please upload a PNG, JPG, or WEBP image.')
       return
     }
     if (selected.size > 10 * 1024 * 1024) {
@@ -2149,99 +2446,90 @@ function ImageEditorSection() {
     }
     setError(null)
     setFile(selected)
-    setUploadedUrl(null)
+    setCompare(50)
     setResultUrl((prev) => {
       if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
       return null
     })
   }
 
-  const buildPrompt = () => {
-    if (mode === 'enhance') {
-      return 'Enhance this image improve quality sharpen details fix lighting'
-    }
-    if (mode === 'background') {
-      return 'Remove the background make it pure white keep the subject'
-    }
-    if (mode === 'style') {
-      const styleMap: Record<StyleOption, string> = {
-        Anime: 'Convert to anime style',
-        'Oil Painting': 'Convert to oil painting style',
-        Watercolor: 'Convert to watercolor style',
-        'Pixel Art': 'Convert to pixel art style',
-        Sketch: 'Convert to sketch style',
-        'Pop Art': 'Convert to pop art style',
+  const enhanceInBrowser = async (source: File) => {
+    const bmp = await createImageBitmap(source)
+    const maxSide = 2048
+    const scale = 2
+    const targetW = Math.min(maxSide, bmp.width * scale)
+    const targetH = Math.min(maxSide, bmp.height * scale)
+    const canvas = document.createElement('canvas')
+    canvas.width = targetW
+    canvas.height = targetH
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas not supported')
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(bmp, 0, 0, targetW, targetH)
+
+    const img = ctx.getImageData(0, 0, targetW, targetH)
+    const d = img.data
+    const out = new Uint8ClampedArray(d.length)
+    const idx = (x: number, y: number) => (y * targetW + x) * 4
+    const clamp = (n: number) => (n < 0 ? 0 : n > 255 ? 255 : n)
+    for (let y = 1; y < targetH - 1; y++) {
+      for (let x = 1; x < targetW - 1; x++) {
+        const i = idx(x, y)
+        for (let c = 0; c < 3; c++) {
+          const v =
+            5 * d[i + c] -
+            d[idx(x - 1, y) + c] -
+            d[idx(x + 1, y) + c] -
+            d[idx(x, y - 1) + c] -
+            d[idx(x, y + 1) + c]
+          const contrast = 1.08
+          const centered = (v - 128) * contrast + 128
+          out[i + c] = clamp(centered)
+        }
+        out[i + 3] = d[i + 3]
       }
-      return styleMap[style]
     }
-    const trimmed = customPrompt.trim()
-    if (!trimmed) return 'Enhance this image improve quality sharpen details fix lighting'
-    return trimmed
+    img.data.set(out)
+    ctx.putImageData(img, 0, 0)
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+    if (!blob) throw new Error('Enhancement failed')
+    return URL.createObjectURL(blob)
   }
 
-  const uploadIfNeeded = async (targetFile: File, controller: AbortController) => {
-    if (uploadedUrl) return uploadedUrl
-    setProgressText('Uploading image...')
-    const url = await uploadToPollinations(targetFile, controller.signal)
-    setUploadedUrl(url)
-    return url
-  }
-
-  const runEdit = async (override?: Partial<Pick<HistoryItem, 'uploadedUrl' | 'seed' | 'model' | 'prompt' | 'label'>>) => {
-    if (!auth.currentUser) {
-      setError('Please sign in to continue')
-      window.dispatchEvent(new Event('auth:required'))
-      return
-    }
-    if (!file && !override?.uploadedUrl) {
+  const runEdit = async () => {
+    if (!file || !previewUrl) {
       setError('Please upload an image first.')
       return
     }
-
     setError(null)
+
+    if (mode === 'colorize') {
+      setIsColoringOpen(true)
+      return
+    }
+    if (mode === 'background') {
+      setIsBgOpen(true)
+      return
+    }
+    if (mode === 'style' || mode === 'custom') {
+      setError('Coming soon.')
+      return
+    }
+
     setIsWorking(true)
-
-    const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 120_000)
-    const started = Date.now()
-    const tick = window.setInterval(() => {
-      const seconds = Math.max(0, Math.floor((Date.now() - started) / 1000))
-      setProgressText((prev) => (prev ? `${prev} (${seconds}s)` : `Working... (${seconds}s)`))
-    }, 1000)
-
+    setProgressText('Enhancing image...')
     try {
-      const effectiveSeed = override?.seed ?? makePollinationsSeed()
-      const effectiveModel = override?.model ?? model
-      const promptText = override?.prompt ?? buildPrompt()
-      const label = override?.label ?? mode
-
-      setProgressText('Preparing request...')
-      const imageUrl = override?.uploadedUrl ?? (file ? await uploadIfNeeded(file, controller) : null)
-      if (!imageUrl) throw new Error('Missing image url')
-
-      setProgressText('Generating result...')
-      const outUrl = `/api/edit-image?prompt=${encodeURIComponent(promptText)}&model=${encodeURIComponent(
-        effectiveModel
-      )}&image=${encodeURIComponent(imageUrl)}`
-      setResultUrl(outUrl)
-      await preloadImageWithRetry(outUrl, 120_000, 1)
-
-      const item: HistoryItem = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        createdAt: Date.now(),
-        mode,
-        model: effectiveModel,
-        seed: effectiveSeed,
-        uploadedUrl: imageUrl,
-        prompt: promptText,
-        label,
-      }
-      setHistory((prev) => [item, ...prev].slice(0, 10))
+      const outUrl = await enhanceInBrowser(file)
+      setResultUrl((prev) => {
+        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+        return outUrl
+      })
+      setCompare(50)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Edit failed')
+      setError(err instanceof Error ? err.message : 'Enhancement failed')
     } finally {
-      window.clearTimeout(timeout)
-      window.clearInterval(tick)
       setProgressText(null)
       setIsWorking(false)
     }
@@ -2259,9 +2547,7 @@ function ImageEditorSection() {
         a.click()
         window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
       })
-      .catch(() => {
-        window.open(resultUrl, '_blank', 'noopener,noreferrer')
-      })
+      .catch(() => window.open(resultUrl, '_blank', 'noopener,noreferrer'))
   }
 
   return (
@@ -2274,19 +2560,8 @@ function ImageEditorSection() {
               Edit Photos with <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-emerald-300">AI</span>
             </h2>
             <p className="text-slate-300 leading-relaxed">
-              Upload an image, choose an edit, pick a model, and generate a high-quality result. Includes before/after comparison, download, and history.
+              Upload an image, choose an edit, and apply it directly in your browser. No API keys required.
             </p>
-
-            <div className="grid sm:grid-cols-2 gap-3">
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                <div className="font-semibold">kontext</div>
-                <div className="text-sm text-slate-300">Fast</div>
-              </div>
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                <div className="font-semibold">gptimage</div>
-                <div className="text-sm text-slate-300">High quality</div>
-              </div>
-            </div>
 
             <input
               ref={fileInputRef}
@@ -2340,7 +2615,6 @@ function ImageEditorSection() {
                     onClick={(e) => {
                       e.stopPropagation()
                       setFile(null)
-                      setUploadedUrl(null)
                       setResultUrl((prev) => {
                         if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
                         return null
@@ -2358,59 +2632,36 @@ function ImageEditorSection() {
                 <div className="text-sm text-slate-300 mb-3">Edit Type</div>
                 <Tabs value={mode} onValueChange={(v) => setMode(v as EditMode)}>
                   <TabsList className="grid grid-cols-2 sm:grid-cols-3 bg-slate-900/70">
+                    <TabsTrigger value="colorize">Colorize</TabsTrigger>
                     <TabsTrigger value="enhance">Enhance</TabsTrigger>
-                    <TabsTrigger value="style">Style</TabsTrigger>
                     <TabsTrigger value="background">Background</TabsTrigger>
-                    <TabsTrigger value="custom">Custom</TabsTrigger>
+                    <TabsTrigger value="style" disabled>
+                      Style
+                    </TabsTrigger>
+                    <TabsTrigger value="custom" disabled>
+                      Custom
+                    </TabsTrigger>
                   </TabsList>
                 </Tabs>
+                {(mode === 'style' || mode === 'custom') && (
+                  <div className="mt-2 text-xs text-slate-400">Coming soon.</div>
+                )}
               </div>
               <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                <div className="text-sm text-slate-300 mb-2">Model</div>
-                <select
-                  className="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2"
-                  value={model}
-                  onChange={(e) => setModel(e.target.value as ModelOption)}
-                >
-                  <option value="kontext">kontext (fast)</option>
-                  <option value="gptimage">gptimage (high quality)</option>
-                </select>
+                <div className="text-sm text-slate-300 mb-2">Output</div>
+                <div className="text-sm text-slate-400">
+                  {mode === 'enhance'
+                    ? 'Upscale + sharpen (browser)'
+                    : mode === 'background'
+                      ? 'Transparent PNG'
+                      : 'Manual workspace'}
+                </div>
               </div>
             </div>
 
-            {mode === 'style' && (
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                <div className="text-sm text-slate-300 mb-2">Style</div>
-                <select
-                  className="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2"
-                  value={style}
-                  onChange={(e) => setStyle(e.target.value as StyleOption)}
-                >
-                  <option>Anime</option>
-                  <option>Oil Painting</option>
-                  <option>Watercolor</option>
-                  <option>Pixel Art</option>
-                  <option>Sketch</option>
-                  <option>Pop Art</option>
-                </select>
-              </div>
-            )}
-
-            {mode === 'custom' && (
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                <div className="text-sm text-slate-300 mb-2">Custom Prompt</div>
-                <textarea
-                  className="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2 min-h-[100px]"
-                  value={customPrompt}
-                  onChange={(e) => setCustomPrompt(e.target.value)}
-                  placeholder="Type your edit instructions..."
-                />
-              </div>
-            )}
-
             <Button
               className="w-full bg-gradient-to-r from-violet-500 to-indigo-500 hover:from-violet-600 hover:to-indigo-600 text-white py-6 text-lg rounded-xl"
-              disabled={isWorking || (!file && !uploadedUrl)}
+              disabled={isWorking || !file}
               onClick={() => void runEdit()}
             >
               {isWorking ? (
@@ -2421,7 +2672,7 @@ function ImageEditorSection() {
               ) : (
                 <>
                   <Wand2 className="w-5 h-5 mr-2" />
-                  Generate Edit
+                  {mode === 'colorize' ? 'Open Coloring' : mode === 'background' ? 'Open Background Remover' : 'Enhance'}
                 </>
               )}
             </Button>
@@ -2440,34 +2691,6 @@ function ImageEditorSection() {
               </div>
             )}
 
-            <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-              <div className="text-sm text-slate-300 mb-3 flex items-center justify-between">
-                <span>History</span>
-                <span className="text-xs text-slate-400">Last 10</span>
-              </div>
-              <div className="space-y-2">
-                {history.length === 0 ? (
-                  <div className="text-sm text-slate-400">No edits yet.</div>
-                ) : (
-                  history.slice(0, 10).map((h) => (
-                    <div key={h.id} className="flex items-center justify-between gap-3 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
-                      <div className="min-w-0">
-                        <div className="text-sm truncate">{h.label}</div>
-                        <div className="text-xs text-slate-400 truncate">{h.model} · seed {h.seed}</div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        className="border-white/15 text-white hover:bg-white/10"
-                        onClick={() => void runEdit({ uploadedUrl: h.uploadedUrl, seed: h.seed, model: h.model, prompt: h.prompt, label: h.label })}
-                        disabled={isWorking}
-                      >
-                        Load
-                      </Button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
           </div>
 
           <div className="space-y-4">
@@ -2484,7 +2707,6 @@ function ImageEditorSection() {
                         <img
                           src={resultUrl}
                           alt="After"
-                          crossOrigin="anonymous"
                           onError={() => setError('Generation failed, please try again')}
                           className="absolute inset-0 w-full h-full object-contain"
                         />
@@ -2534,6 +2756,30 @@ function ImageEditorSection() {
             </div>
           </div>
         </div>
+        <ManualColoringDialog
+          open={isColoringOpen}
+          onOpenChange={setIsColoringOpen}
+          imageUrl={previewUrl}
+          title="Colorize (Manual)"
+          onExport={(url) =>
+            setResultUrl((prev) => {
+              if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+              return url
+            })
+          }
+        />
+        <BackgroundRemovalDialog
+          open={isBgOpen}
+          onOpenChange={setIsBgOpen}
+          imageUrl={previewUrl}
+          title="Background Remover"
+          onExport={(url) =>
+            setResultUrl((prev) => {
+              if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+              return url
+            })
+          }
+        />
       </div>
     </section>
   )
