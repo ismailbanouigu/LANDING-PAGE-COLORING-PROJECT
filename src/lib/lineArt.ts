@@ -1,5 +1,10 @@
 const LINE_ART_MODEL_URL = '/models/lineart.onnx'
 
+type InvertMode = 'auto' | 'on' | 'off'
+type ConvertOptions = {
+  invert?: InvertMode
+}
+
 type OrtTensor = {
   data: Float32Array | Uint8Array | Int32Array | number[]
   dims?: number[]
@@ -93,17 +98,17 @@ function createImageFromObjectUrl(url: string) {
   })
 }
 
-export async function convertFileToLineArtDataUrl(file: File) {
+export async function convertFileToLineArtDataUrl(file: File, options?: ConvertOptions) {
   const objectUrl = URL.createObjectURL(file)
   try {
     const image = await createImageFromObjectUrl(objectUrl)
-    return await convertImageToLineArtDataUrl(image)
+    return await convertImageToLineArtDataUrl(image, options)
   } finally {
     URL.revokeObjectURL(objectUrl)
   }
 }
 
-export async function convertImageToLineArtDataUrl(image: CanvasImageSource) {
+export async function convertImageToLineArtDataUrl(image: CanvasImageSource, options?: ConvertOptions) {
   const session = await getLineArtSession()
   const ort = getOrt()
 
@@ -142,9 +147,21 @@ export async function convertImageToLineArtDataUrl(image: CanvasImageSource) {
   const outCtx = outputCanvas.getContext('2d')
   if (!outCtx) throw new Error('Canvas not supported')
   const outImageData = outCtx.createImageData(size, size)
+  const invertMode: InvertMode = options?.invert ?? 'auto'
+  const grays = new Uint8ClampedArray(expected)
+  let sum = 0
   for (let i = 0; i < expected; i++) {
     const v = clamp01(out[offset + i] ?? 0)
     const gray = Math.round((1 - v) * 255)
+    grays[i] = gray
+    sum += gray
+  }
+
+  const avg = sum / expected
+  const shouldInvert = invertMode === 'on' || (invertMode === 'auto' && avg < 128)
+
+  for (let i = 0; i < expected; i++) {
+    const gray = shouldInvert ? 255 - grays[i] : grays[i]
     outImageData.data[i * 4] = gray
     outImageData.data[i * 4 + 1] = gray
     outImageData.data[i * 4 + 2] = gray

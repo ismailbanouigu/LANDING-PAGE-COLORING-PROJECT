@@ -99,23 +99,36 @@ async function colorizeWithDeepAI(image: File | string, signal?: AbortSignal) {
     const form = new FormData()
     form.append('image', image)
     const proxyRes = await fetch('/api/deepai-colorize', { method: 'POST', body: form, signal })
-    if (proxyRes.ok) {
-      const proxyJson = (await proxyRes.json()) as unknown
-      const outputUrl =
-        proxyJson &&
-        typeof proxyJson === 'object' &&
-        proxyJson !== null &&
-        typeof (proxyJson as Record<string, unknown>).output_url === 'string'
-          ? String((proxyJson as Record<string, unknown>).output_url)
-          : null
-      if (outputUrl) return outputUrl
-    }
-    const errJson = (await proxyRes.json().catch(() => null)) as unknown
-    const errText =
-      errJson && typeof errJson === 'object' && errJson !== null && typeof (errJson as Record<string, unknown>).error === 'string'
-        ? String((errJson as Record<string, unknown>).error)
+    const bodyText = await proxyRes.text()
+    const asJson = (() => {
+      try {
+        return JSON.parse(bodyText) as unknown
+      } catch {
+        return null
+      }
+    })()
+
+    const outputUrl =
+      asJson &&
+      typeof asJson === 'object' &&
+      asJson !== null &&
+      typeof (asJson as Record<string, unknown>).output_url === 'string'
+        ? String((asJson as Record<string, unknown>).output_url)
         : null
-    throw new Error(errText || 'Colorization failed, please try again')
+    if (proxyRes.ok && outputUrl) return outputUrl
+
+    const errText =
+      asJson &&
+      typeof asJson === 'object' &&
+      asJson !== null &&
+      (typeof (asJson as Record<string, unknown>).err === 'string' ||
+        typeof (asJson as Record<string, unknown>).error === 'string')
+        ? String((asJson as Record<string, unknown>).err || (asJson as Record<string, unknown>).error)
+        : bodyText?.trim()
+          ? bodyText.trim()
+          : null
+
+    throw new Error(errText || `Colorization failed (${proxyRes.status})`)
   } catch (err) {
     throw err instanceof Error ? err : new Error('Colorization failed, please try again')
   }
@@ -946,7 +959,7 @@ function PhotoToColoringSection() {
       }
 
       setProgressText('Converting your photo...')
-      const dataUrl = await convertFileToLineArtDataUrl(file)
+      const dataUrl = await convertFileToLineArtDataUrl(file, { invert: 'auto' })
       setResultUrl(dataUrl)
     } catch (err) {
       setModelStatus((prev) => (prev === 'loading' ? 'error' : prev))
