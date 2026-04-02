@@ -132,6 +132,7 @@ export default {
       const upstream = await fetch('https://api.deepai.org/api/colorizer', {
         method: 'POST',
         headers: {
+          'Api-Key': key,
           'api-key': key,
           'content-type': request.headers.get('content-type') || 'application/octet-stream',
         },
