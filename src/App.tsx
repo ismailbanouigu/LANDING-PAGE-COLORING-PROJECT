@@ -1022,36 +1022,8 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
   }, []);
 
   const navItems = [
-    {
-      label: 'Free Coloring Pages',
-      href: '/coloring-pages/all',
-      dropdown: [
-        { label: 'Animals', href: '/coloring-pages/animals', icon: '🐾' },
-        { label: 'Cartoons', href: '/coloring-pages/cartoons', icon: '🎨' },
-        { label: 'Holidays', href: '/coloring-pages/holidays', icon: '🎄' },
-        { label: 'Fantasy', href: '/coloring-pages/fantasy', icon: '🦄' },
-        { label: 'Nature', href: '/coloring-pages/nature', icon: '🌸' },
-        { label: 'View All', href: '/coloring-pages/all', icon: '→' },
-      ]
-    },
-    {
-      label: 'AI Generators',
-      href: '/generators',
-      dropdown: [
-        { label: 'Photo to Coloring Page', href: '/generators/photo-to-coloring', icon: '📸' },
-        { label: 'Text to Coloring Page', href: '/generators/text-to-coloring', icon: '✏️' },
-        { label: 'Coloring Book Generator', href: '/generators/coloring-book', icon: '📚' },
-        { label: 'AI Image Editor', href: '/generators/image-editor', icon: '🪄' },
-        { label: 'Colorize Drawing', href: '/generators/colorize', icon: '🎨' },
-      ]
-    },
-    {
-      label: 'Coloring Book Generator',
-      href: '/generators/coloring-book',
-      badge: 'New',
-    },
-    { label: 'Online Coloring', href: '/online-coloring' },
-    { label: 'Gallery', href: '/coloring-pages/all' },
+    { label: 'Photo to Coloring', href: '/generators/photo-to-coloring' },
+    { label: 'Text to Coloring', href: '/generators/text-to-coloring' },
   ];
 
   return (
@@ -1068,7 +1040,7 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
                 <span className="text-indigo-600">Ink</span>
                 <span className="text-emerald-500">Bloom</span>
               </span>
-              <span className="text-xs text-gray-400 hidden sm:block">AI Coloring Studio</span>
+              <span className="text-xs text-gray-400 hidden sm:block">Coloring Page Generator</span>
             </div>
           </Link>
 
@@ -1148,11 +1120,11 @@ function Header({ user, onSignIn, onSignOut, isSigningIn }: HeaderProps) {
               </Button>
             )}
             <Button
-              onClick={() => navigate('/generators/text-to-coloring')}
+              onClick={() => navigate('/generators/photo-to-coloring')}
               className="bg-gradient-to-r from-indigo-600 to-emerald-500 hover:from-indigo-700 hover:to-emerald-600 text-white px-6"
             >
               <Sparkles className="w-4 h-4 mr-2" />
-              Get Started Free
+              Upload a Photo
             </Button>
           </div>
 
@@ -1236,9 +1208,9 @@ function HeroSection() {
       subtitle: 'Simply describe what you want, and our AI will generate unique coloring pages'
     },
     {
-      image: '/tortoise-hare-cover.jpg',
-      title: 'Build Complete Coloring Books',
-      subtitle: 'Generate multi-page coloring books with consistent characters and stories'
+      image: '/hero-cat.jpg',
+      title: 'Print-Ready Outlines',
+      subtitle: 'Clean bold lines, no shading, and a white background'
     }
   ];
 
@@ -1279,34 +1251,28 @@ function HeroSection() {
             </div>
             
             <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold leading-tight">
-              Turn <span className="text-gradient">ideas</span>{' '}
-              into <span className="text-gradient-orange">printable</span>{' '}
-              <span className="text-indigo-600">coloring pages</span>
+              Turn Any Picture Into a <span className="text-indigo-600">Coloring Page</span>
             </h1>
             
             <p className="text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
-              Transform photos and text into stunning coloring pages with AI. Perfect for Amazon KDP, 
-              Etsy sellers, teachers, parents, and creative enthusiasts. Create unlimited designs 
-              in seconds!
+              Create printable coloring pages from photos or prompts. Perfect for kids, parents, teachers, classrooms, and gifts.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <Button
-                onClick={() => {
-                  navigate('/generators/text-to-coloring')
-                }}
+                onClick={() => navigate('/generators/photo-to-coloring')}
                 className="bg-gradient-to-r from-indigo-600 to-emerald-500 hover:from-indigo-700 hover:to-emerald-600 text-white px-8 py-6 text-lg rounded-xl shadow-lg shadow-indigo-600/20 hover:shadow-xl hover:shadow-indigo-600/25 transition-all"
               >
-                <Sparkles className="w-5 h-5 mr-2" />
-                Start Creating Free
+                <Upload className="w-5 h-5 mr-2" />
+                Upload a Photo
               </Button>
               <Button
-                onClick={() => setDemoOpen(true)}
+                onClick={() => navigate('/generators/text-to-coloring')}
                 variant="outline"
                 className="px-8 py-6 text-lg rounded-xl border-2 hover:bg-indigo-50"
               >
-                <Play className="w-5 h-5 mr-2" />
-                Watch Demo
+                <Type className="w-5 h-5 mr-2" />
+                Generate from Text
               </Button>
             </div>
             
@@ -1964,29 +1930,29 @@ function TextToColoringSection() {
     setShowImage(false)
 
     try {
-      const styleHintMap: Record<typeof style, string> = {
-        Simple: 'simple shapes, minimal detail',
-        Detailed: 'high detail, intricate outlines',
-        Realistic: 'realistic proportions, natural details',
-        Cartoon: 'cute cartoon style, clean outlines',
-        Mandala: 'mandala patterns, symmetric ornamental details',
-      }
-      const coloringPrompt = `${effectivePrompt}, ${styleHintMap[style]}, black and white coloring page, clean bold outlines, no shading, no colors, suitable for coloring book, high detail line art`
-      const seed = makePollinationsSeed()
-      const url = buildPollinationsImageUrl(coloringPrompt, {
-        model: 'flux',
-        seed,
-        nologo: true,
-        width: 1024,
-        height: 1024,
-      })
       const slowTimer = window.setTimeout(() => setSlowNotice(true), 30_000)
+      const resp = await fetch('/api/text-to-coloring', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ prompt: effectivePrompt, style }),
+      })
+      if (!resp.ok) throw new Error('Generation failed, please try again')
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
       try {
         await preloadImageWithRetry(url, 120_000, 1)
       } finally {
         window.clearTimeout(slowTimer)
       }
-      setGeneratedImageUrl(url)
+      // Refine to clean black & white coloring page using ONNX
+      await getLineArtSession()
+      const file = new File([blob], 'gen.png', { type: blob.type || 'image/png' })
+      const refined = await convertFileToLineArtDataUrl(file, { invert: 'auto', binarize: true, thicken: true })
+      if (url.startsWith('blob:')) URL.revokeObjectURL(url)
+      setGeneratedImageUrl((prev) => {
+        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+        return refined
+      })
       setLastGeneratedAt(Date.now())
       window.requestAnimationFrame(() => setShowImage(true))
     } catch (err) {
@@ -2071,37 +2037,38 @@ function TextToColoringSection() {
               <img
                 src={generatedImageUrl}
                 alt="Generated preview"
-                crossOrigin="anonymous"
                 onError={() => setGenerateError('Generation failed, please try again')}
                 className={`rounded-xl w-full max-h-[520px] object-contain bg-gray-50 transition-opacity duration-500 ${showImage ? 'opacity-100' : 'opacity-0'}`}
               />
               <div className="mt-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => openOnlineColoring(generatedImageUrl)}
-                  >
-                    Color This Online
-                  </Button>
-                  <Button
                     className="w-full bg-gray-900 text-white hover:bg-gray-800"
                     onClick={() => {
-                      fetch(generatedImageUrl)
-                        .then((res) => res.blob())
-                        .then((blob) => {
-                          const url = URL.createObjectURL(blob)
-                          const a = document.createElement('a')
-                          a.href = url
-                          a.download = 'coloring-page.png'
-                          a.click()
-                          window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
-                        })
-                        .catch(() => window.open(generatedImageUrl, '_blank', 'noopener,noreferrer'))
+                      const a = document.createElement('a')
+                      a.href = generatedImageUrl
+                      a.download = 'coloring-page.png'
+                      a.click()
                     }}
                   >
                     <Download className="w-4 h-4 mr-2" />
-                    Download
+                    Download PNG
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      const w = window.open('', '_blank', 'noopener,noreferrer')
+                      if (!w) return
+                      w.document.write(
+                        `<html><head><title>Print</title><style>body{margin:0}img{width:100%;height:auto;display:block}</style></head><body><img src="${generatedImageUrl}"/></body></html>`
+                      )
+                      w.document.close()
+                      w.focus()
+                      w.print()
+                    }}
+                  >
+                    Print
                   </Button>
                 </div>
               </div>
@@ -4668,23 +4635,12 @@ function GeneratorsIndexPage() {
 }
 
 function HomePage() {
-  useSeo('InkBloom — AI Coloring Page Studio', 'Turn photos and text into printable coloring pages with InkBloom.')
+  useSeo('InkBloom — Turn Any Picture Into a Coloring Page', 'Create printable coloring pages from photos or prompts. Perfect for kids, parents, teachers, classrooms, and gifts.')
   return (
     <main>
       <HeroSection />
-      <HowItWorksSection />
-      <FeaturesGridSection />
       <PhotoToColoringSection />
       <TextToColoringSection />
-      <ColoringBookSection />
-      <ImageEditorSection />
-      <ColorizeSection />
-      <GallerySection />
-      <OnlineColoringSection />
-      <TestimonialsSection />
-      <PricingSection />
-      <FAQSection />
-      <CTASection />
     </main>
   )
 }
@@ -4983,26 +4939,9 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
-        <Route path="/cookies" element={<CookiesPage />} />
         <Route path="/terms" element={<TermsPage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/contact" element={<ContactPage />} />
-        <Route path="/blog" element={<BlogPage />} />
-        <Route path="/tutorials" element={<TutorialsPage />} />
-        <Route path="/help" element={<HelpPage />} />
-        <Route path="/community" element={<CommunityPage />} />
-        <Route path="/api-docs" element={<ApiDocsPage />} />
-        <Route path="/press" element={<PressPage />} />
-        <Route path="/partners" element={<PartnersPage />} />
-        <Route path="/careers" element={<CareersPage />} />
-        <Route path="/online-coloring" element={<OnlineColoringPage />} />
-        <Route path="/generators" element={<GeneratorsIndexPage />} />
         <Route path="/generators/photo-to-coloring" element={<GeneratorPhotoPage />} />
         <Route path="/generators/text-to-coloring" element={<GeneratorTextPage />} />
-        <Route path="/generators/coloring-book" element={<GeneratorBookPage />} />
-        <Route path="/generators/image-editor" element={<GeneratorEditorPage />} />
-        <Route path="/generators/colorize" element={<GeneratorColorizePage />} />
-        <Route path="/coloring-pages/:category" element={<ColoringPagesCategoryPage />} />
         <Route path="*" element={<HomePage />} />
       </Routes>
       <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>

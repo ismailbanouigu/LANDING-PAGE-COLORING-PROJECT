@@ -11,10 +11,110 @@ export default {
     request: Request,
     env: {
       __STATIC_CONTENT: AssetNamespace
+      POLLINATIONS_API_KEY?: string
     },
     ctx: { waitUntil(promise: Promise<unknown>): void }
   ) {
     const url = new URL(request.url)
+
+    if (url.pathname === '/api/text-to-coloring') {
+      if (request.method === 'OPTIONS') {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            'access-control-allow-origin': '*',
+            'access-control-allow-methods': 'POST,OPTIONS',
+            'access-control-allow-headers': 'content-type',
+            'access-control-max-age': '86400',
+          },
+        })
+      }
+      if (request.method !== 'POST') {
+        return new Response('Method Not Allowed', {
+          status: 405,
+          headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST,OPTIONS' },
+        })
+      }
+
+      const key = env.POLLINATIONS_API_KEY
+      if (!key) {
+        return new Response(JSON.stringify({ error: 'Service unavailable' }), {
+          status: 503,
+          headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
+        })
+      }
+
+      let body: unknown = null
+      try {
+        body = await request.json()
+      } catch {
+        body = null
+      }
+
+      const prompt =
+        body && typeof body === 'object' && body !== null && typeof (body as any).prompt === 'string'
+          ? String((body as any).prompt)
+          : ''
+      const style =
+        body && typeof body === 'object' && body !== null && typeof (body as any).style === 'string'
+          ? String((body as any).style)
+          : 'Detailed'
+
+      const trimmed = prompt.trim()
+      if (!trimmed) {
+        return new Response(JSON.stringify({ error: 'Missing prompt' }), {
+          status: 400,
+          headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' },
+        })
+      }
+
+      const styleHintMap: Record<string, string> = {
+        Simple: 'simple shapes, minimal detail',
+        Detailed: 'high detail, intricate outlines',
+        Realistic: 'realistic proportions, natural details',
+        Cartoon: 'cute cartoon style, clean outlines',
+        Mandala: 'mandala patterns, symmetric ornamental details',
+      }
+      const styleHint = styleHintMap[style] || styleHintMap.Detailed
+      const coloringPrompt = `${trimmed}, ${styleHint}, black and white coloring page, clean bold outlines, no shading, no colors, white background, printable, suitable for kids coloring book, line art`
+
+      const target = `https://image.pollinations.ai/prompt/${encodeURIComponent(
+        coloringPrompt
+      )}?model=flux&width=1024&height=1024&nologo=true&key=${encodeURIComponent(key)}`
+      const resp = await fetch(target, {
+        cf: { cacheEverything: true, cacheTtl: 3600 },
+        headers: {
+          Authorization: `Bearer ${key}`,
+          Accept: 'image/*',
+        },
+      })
+      if (!resp.ok) {
+        let details: string | undefined
+        try {
+          const txt = await resp.text()
+          details = txt && txt.length < 500 ? txt : undefined
+        } catch {
+          details = undefined
+        }
+        return new Response(JSON.stringify({ error: 'Upstream error', status: resp.status, details }), {
+          status: resp.status,
+          headers: {
+            'content-type': 'application/json',
+            'access-control-allow-origin': '*',
+            'cache-control': 'no-store',
+          },
+        })
+      }
+      const ct = resp.headers.get('content-type') || 'image/jpeg'
+      return new Response(resp.body, {
+        status: resp.status,
+        headers: {
+          'content-type': ct,
+          'access-control-allow-origin': '*',
+          'cache-control': 'public, max-age=3600',
+        },
+      })
+    }
 
     if (url.pathname === '/models/lineart.onnx') {
       if (request.method === 'OPTIONS') {
