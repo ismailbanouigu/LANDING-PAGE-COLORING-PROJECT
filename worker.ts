@@ -88,14 +88,14 @@ export default {
       const styleHint = styleHintMap[style] || styleHintMap.Detailed
       const coloringPrompt = `${trimmed}, ${styleHint}, black and white coloring page, clean bold outlines, no shading, no colors, white background, printable, suitable for kids coloring book, line art`
 
-      const target = `https://gen.pollinations.ai/image/${encodeURIComponent(
+      const target = `https://enter.pollinations.ai/api/generate/image/${encodeURIComponent(
         coloringPrompt
       )}?model=flux&width=1024&height=1024&nologo=true&private=true&safe=true`
       const resp = await fetch(target, {
         cf: { cacheEverything: true, cacheTtl: 3600 },
         headers: {
           Authorization: `Bearer ${key}`,
-          Accept: 'image/*',
+          Accept: 'image/avif,image/webp,image/*,*/*',
         },
       })
       if (!resp.ok) {
