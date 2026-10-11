@@ -1,4 +1,10 @@
-# React + TypeScript + Vite
+# InkBloom
+
+Turn photos or text prompts into printable coloring pages. Text-to-coloring generation is powered by Pollinations.
+
+[![Made with pollinations.ai](https://raw.githubusercontent.com/pollinations/pollinations/main/packages/ui/src/brand/badge-made-with.svg)](https://pollinations.ai/?ref=badge)
+
+## Development
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
